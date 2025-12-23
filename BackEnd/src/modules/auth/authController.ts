@@ -640,7 +640,7 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
         };
 
         console.log('🔐 Creating new JWT tokens...');
-        const newAccessToken = jwt.sign(newAccessPayload, process.env.JWT_SECRET!, { expiresIn: '15m' });
+        const newAccessToken = jwt.sign(newAccessPayload, process.env.JWT_SECRET!, { expiresIn: '10d' });
         const newRefreshToken = jwt.sign(newRefreshPayload, process.env.JWT_SECRET!, { expiresIn: '30d' });
 
         setAuthCookies(res, newAccessToken, newRefreshToken);

@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import router from './routes/auth.routes.js';
-
+import folderRoutes from './routes/folder.routes.js';
 const app = express();
 
 app.use(cors());
@@ -15,5 +15,5 @@ app.get("/", (_, res)=>{
 })
 
 app.use('/api/auth', router);
-
+app.use('/api/folders', folderRoutes);
 export default app;
