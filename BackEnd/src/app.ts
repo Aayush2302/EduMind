@@ -3,6 +3,8 @@ import cors from 'cors';
 import morgan from 'morgan';
 import router from './routes/auth.routes.js';
 import folderRoutes from './routes/folder.routes.js';
+import chatRoutes from './routes/chat.routes.js';
+
 const app = express();
 
 app.use(cors());
@@ -16,4 +18,6 @@ app.get("/", (_, res)=>{
 
 app.use('/api/auth', router);
 app.use('/api/folders', folderRoutes);
+app.use('/api/', chatRoutes);
+
 export default app;

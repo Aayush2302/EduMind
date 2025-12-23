@@ -1,17 +1,23 @@
 import { Router } from 'express';
-import { createFolderHandler,
-    getFoldersHandler,
-    deleteFolderHandler
- } from '../modules/folders/folder.controller.js';
+import {
+  createFolderHandler,
+  getFoldersHandler,
+  deleteFolderHandler
+} from '../modules/folders/folder.controller.js';
+import { validateUserContext } from '../middleware/validateUserContext.js';
 
- import { validateUserContext } from '../middleware/validateUserContext.js';
+const router = Router();
 
- const router = Router();
+// All folder routes require authenticated user
+router.use(validateUserContext);
 
- router.use(validateUserContext);
+// Create a new folder
+router.post('/createFolder', createFolderHandler);
 
- router.post('/createFolder', createFolderHandler);
-    router.get('/getFolders', getFoldersHandler);
-    router.delete('/:folderId', deleteFolderHandler);
+// Get all folders of logged-in user
+router.get('/getFolders', getFoldersHandler);
 
-    export default router;
+// Soft delete a folder
+router.delete('/:folderId', deleteFolderHandler);
+
+export default router;
