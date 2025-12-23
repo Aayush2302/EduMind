@@ -4,6 +4,8 @@ import morgan from 'morgan';
 import router from './routes/auth.routes.js';
 import folderRoutes from './routes/folder.routes.js';
 import chatRoutes from './routes/chat.routes.js';
+import messageRoutes from "./routes/message.routes.js";
+
 
 const app = express();
 
@@ -19,5 +21,6 @@ app.get("/", (_, res)=>{
 app.use('/api/auth', router);
 app.use('/api/folders', folderRoutes);
 app.use('/api/', chatRoutes);
+app.use('/api/', messageRoutes);
 
 export default app;
