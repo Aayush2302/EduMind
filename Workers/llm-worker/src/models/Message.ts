@@ -6,7 +6,10 @@ const messageSchema = new Schema(
     sender: String,
     content: String,
     status: String,
-    parentMessageId: Schema.Types.ObjectId
+    parentMessageId: Schema.Types.ObjectId,
+    studyMode: String,
+    constraintMode: String
+    
   },
   
   { timestamps: true }

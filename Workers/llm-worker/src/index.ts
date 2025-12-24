@@ -3,7 +3,45 @@ import { redis } from "./config/redis.js";
 import { connectDB } from "./config/db.js";
 import { Message } from "./models/Message.js";
 import { groq } from "./llm/groq.js";
-import { buildPrompt } from "./prompt/basic.prompt.js";
+
+import { simplePrompt } from "./prompt/simple.prompt.js";
+import { interviewPrompt } from "./prompt/interview.prompt.js";
+import { stepByStepPrompt } from "./prompt/stepBystep.prompt.js";
+import { applyRagConstraint } from "./prompt/rag.guard.js";
+
+/**
+ * Build prompt based on study mode + constraint mode
+ */
+function buildPrompt({
+  content,
+  studyMode,
+  constraintMode
+}: {
+  content: string;
+  studyMode: "simple" | "interview" | "step-by-step";
+  constraintMode: "allowed" | "strict";
+}) {
+  let messages;
+
+  switch (studyMode) {
+    case "simple":
+      messages = simplePrompt(content);
+      break;
+
+    case "interview":
+      messages = interviewPrompt(content);
+      break;
+
+    case "step-by-step":
+      messages = stepByStepPrompt(content);
+      break;
+
+    default:
+      throw new Error(`Unsupported study mode: ${studyMode}`);
+  }
+
+  return applyRagConstraint(messages, constraintMode);
+}
 
 async function startWorker() {
   await connectDB();
@@ -14,27 +52,30 @@ async function startWorker() {
     async job => {
       const {
         userMessageId,
-        assistantMessageId
+        assistantMessageId,
+        studyMode,
+        constraintMode
       } = job.data;
 
       console.log("🧠 Job received:", job.data);
 
-      // 1️⃣ Fetch user message
+      // 1️⃣ Fetch user message (ONLY for content)
       const userMessage = await Message.findById(userMessageId);
-      if (!userMessage) {
-        throw new Error("User message not found");
+      if (!userMessage || !userMessage.content) {
+        throw new Error("Invalid or empty user message");
       }
 
-      // 2️⃣ Build prompt
-      if (!userMessage.content) {
-        throw new Error("User message content is empty");
-      }
-      const messages = buildPrompt(userMessage.content);
+      // 2️⃣ Build prompt using JOB DATA (not Message)
+      const messages = buildPrompt({
+        content: userMessage.content,
+        studyMode,
+        constraintMode
+      });
 
       // 3️⃣ Call GROQ with streaming
       const stream = await groq.chat.completions.create({
         model: "openai/gpt-oss-120b",
-        messages : messages as any,
+        messages: messages as any,
         temperature: 1,
         max_completion_tokens: 8192,
         top_p: 1,
@@ -65,7 +106,7 @@ async function startWorker() {
   );
 
   worker.on("failed", async (job, err) => {
-    console.error("❌ Job failed", err.message);
+    console.error("❌ Job failed:", err.message);
 
     if (job?.data?.assistantMessageId) {
       await Message.findByIdAndUpdate(job.data.assistantMessageId, {

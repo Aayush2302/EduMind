@@ -103,7 +103,8 @@ export async function createUserMessageAndEnqueue(
     chatId,
     userMessageId : userMessage._id.toString(),
     assistantMessageId : assistantMessage._id.toString(),
-    studyMode : chat.studyMode
+    studyMode : chat.studyMode,
+    constraintMode: chat.constraintMode
   });
 
   return { userMessage, assistantMessage };
