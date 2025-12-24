@@ -2,38 +2,78 @@ import { Worker } from "bullmq";
 import { redis } from "./config/redis.js";
 import { connectDB } from "./config/db.js";
 import { Message } from "./models/Message.js";
-import { log } from "node:console";
-import { loadavg } from "node:os";
-import { start } from "node:repl";
+import { groq } from "./llm/groq.js";
+import { buildPrompt } from "./prompt/basic.prompt.js";
 
-async function startWorker(){
-    await connectDB();
+async function startWorker() {
+  await connectDB();
+  console.log("🚀 LLM Worker started");
 
-    const worker = new Worker(
-  "llm-jobs",
-  async job => {
-    console.log("🧠 Job received:", job.data);
+  const worker = new Worker(
+    "llm-jobs",
+    async job => {
+      const {
+        userMessageId,
+        assistantMessageId
+      } = job.data;
 
-    const { assistantMessageId } = job.data;
+      console.log("🧠 Job received:", job.data);
 
-    await new Promise(res => setTimeout(res, 2000));
+      // 1️⃣ Fetch user message
+      const userMessage = await Message.findById(userMessageId);
+      if (!userMessage) {
+        throw new Error("User message not found");
+      }
 
-    await Message.findByIdAndUpdate(assistantMessageId, {
-      content: "This is a dummy AI response",
-      status: "completed"
-    });
+      // 2️⃣ Build prompt
+      if (!userMessage.content) {
+        throw new Error("User message content is empty");
+      }
+      const messages = buildPrompt(userMessage.content);
 
-    console.log("✅ Job completed");
-  },
-  { connection: redis }
-);
+      // 3️⃣ Call GROQ with streaming
+      const stream = await groq.chat.completions.create({
+        model: "openai/gpt-oss-120b",
+        messages : messages as any,
+        temperature: 1,
+        max_completion_tokens: 8192,
+        top_p: 1,
+        stream: true,
+        reasoning_effort: "medium"
+      });
 
-    worker.on("failed", (job,err) => {
-        console.log("Job Failed", job?.id, err);
-    });
+      let fullResponse = "";
 
-    console.log("LLM Worker Started");
-    
+      for await (const chunk of stream) {
+        const token = chunk.choices[0]?.delta?.content;
+        if (token) {
+          fullResponse += token;
+        }
+      }
+
+      // 4️⃣ Save final AI response
+      await Message.findByIdAndUpdate(assistantMessageId, {
+        content: fullResponse,
+        status: "completed"
+      });
+
+      console.log("✅ AI response saved");
+    },
+    {
+      connection: redis
+    }
+  );
+
+  worker.on("failed", async (job, err) => {
+    console.error("❌ Job failed", err.message);
+
+    if (job?.data?.assistantMessageId) {
+      await Message.findByIdAndUpdate(job.data.assistantMessageId, {
+        status: "failed",
+        content: "AI failed to generate response"
+      });
+    }
+  });
 }
 
 startWorker();
