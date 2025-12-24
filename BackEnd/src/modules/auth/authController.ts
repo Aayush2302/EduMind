@@ -11,7 +11,7 @@ const COOKIE_OPTIONS = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict' as const,
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    maxAge: 10 * 24 * 60 * 60 * 1000, // 10 days - UPDATED
     path: '/'
 };
 
@@ -84,9 +84,9 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
             return;
         }
 
-        console.log('🔍 Token received (first 50 chars):', token.substring(0, 50) + '...');
+        console.log('🔍 Google ID Token received (first 50 chars):', token.substring(0, 50) + '...');
 
-        // Verify Google ID token
+        // Verify Google ID token (NOT storing this, just verifying identity)
         console.log('🔐 Verifying Google ID token...');
         if (!process.env.GOOGLE_CLIENT_ID) {
             console.error('❌ GOOGLE_CLIENT_ID not configured');
@@ -172,7 +172,7 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
             return;
         }
 
-        // Create JWT payload
+        // Create YOUR APPLICATION's JWT tokens (not Google's tokens!)
         const jwtPayload = {
             id: user._id,
             email: user.email,
@@ -187,22 +187,24 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
             type: 'refresh'
         };
 
-        console.log('🔐 Creating JWT tokens...');
+        console.log('🔑 Creating YOUR application JWT tokens (NOT Google tokens)...');
 
         if (!process.env.JWT_SECRET) {
             console.error('❌ JWT_SECRET not configured');
             throw new Error("JWT_SECRET not configured");
         }
 
+        // FIXED: Changed from 15m to 10d for consistency
         const accessToken = jwt.sign(jwtPayload, process.env.JWT_SECRET!, {
-            expiresIn: "15m"
+            expiresIn: "10d"
         });
 
         const refreshToken = jwt.sign(refreshPayload, process.env.JWT_SECRET!, {
             expiresIn: "30d"
         });
 
-        console.log('✅ JWT tokens created successfully');
+        console.log('✅ YOUR application JWT tokens created successfully');
+        console.log('ℹ️  Note: Google ID token was only used for verification, not stored');
 
         setAuthCookies(res, accessToken, refreshToken);
 
@@ -222,7 +224,7 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
             }
         };
 
-        console.log('📤 Sending successful response');
+        console.log('📤 Sending successful response with YOUR JWT tokens');
         res.status(200).json(responseData);
 
         console.log('=== Google Login Request Completed Successfully ===');
@@ -354,14 +356,15 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
             type: 'refresh'
         };
 
-        console.log('🔐 Creating JWT tokens...');
+        console.log('🔑 Creating JWT tokens...');
 
         if (!process.env.JWT_SECRET) {
             console.error('❌ JWT_SECRET not configured');
             throw new Error("JWT_SECRET not configured");
         }
 
-        const accessToken = jwt.sign(accessPayload, process.env.JWT_SECRET!, { expiresIn: '15m' });
+        // FIXED: Changed from 15m to 10d for consistency
+        const accessToken = jwt.sign(accessPayload, process.env.JWT_SECRET!, { expiresIn: '10d' });
         const refreshToken = jwt.sign(refreshPayload, process.env.JWT_SECRET!, { expiresIn: '30d' });
         console.log('✅ JWT tokens created successfully');
 
@@ -465,14 +468,15 @@ export const signin = async (req: Request, res: Response): Promise<void> => {
             type: 'refresh'
         };
 
-        console.log('🔐 Creating JWT tokens...');
+        console.log('🔑 Creating JWT tokens...');
 
         if (!process.env.JWT_SECRET) {
             console.error('❌ JWT_SECRET not configured');
             throw new Error("JWT_SECRET not configured");
         }
 
-        const accessToken = jwt.sign(accessPayload, process.env.JWT_SECRET!, { expiresIn: '15m' });
+        // FIXED: Changed from 15m to 10d for consistency
+        const accessToken = jwt.sign(accessPayload, process.env.JWT_SECRET!, { expiresIn: '10d' });
         const refreshToken = jwt.sign(refreshPayload, process.env.JWT_SECRET!, { expiresIn: '30d' });
         console.log('✅ JWT tokens created successfully');
 
@@ -639,7 +643,7 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
             type: 'refresh'
         };
 
-        console.log('🔐 Creating new JWT tokens...');
+        console.log('🔑 Creating new JWT tokens...');
         const newAccessToken = jwt.sign(newAccessPayload, process.env.JWT_SECRET!, { expiresIn: '10d' });
         const newRefreshToken = jwt.sign(newRefreshPayload, process.env.JWT_SECRET!, { expiresIn: '30d' });
 
@@ -695,6 +699,10 @@ export const authHealthCheck = (req: Request, res: Response): void => {
             multiProviderAuth: true,
             accountLinking: true,
             statusManagement: true
+        },
+        tokenExpiry: {
+            accessToken: '10 days',
+            refreshToken: '30 days'
         }
     });
 };

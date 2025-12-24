@@ -7,6 +7,7 @@ export interface IMessage extends Document {
   status: "completed" | "processing" | "failed";
   createdAt: Date;
   updatedAt: Date;
+  parentMessageId?: mongoose.Types.ObjectId;
 }
 
 const messageSchema = new Schema<IMessage>(
@@ -25,15 +26,21 @@ const messageSchema = new Schema<IMessage>(
     },
 
     content: {
-      type: String,
-      required: true
-    },
+  type: String,
+  default: ""
+},
 
     status: {
       type: String,
       enum: ["completed", "processing", "failed"],
       default: "completed"
-    }
+    },
+
+    parentMessageId: {
+  type: Schema.Types.ObjectId,
+  ref: "Message"
+}
+
   },
   { timestamps: true }
 );

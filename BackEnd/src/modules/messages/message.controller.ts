@@ -3,7 +3,8 @@ import mongoose from "mongoose";
 import { createMessageSchema } from "./message.schema.js";
 import {
   getMessages,
-  createUserMessage
+  createUserMessage,
+  createUserMessageAndEnqueue
 } from "./message.service.js";
 import { AppError } from "../../utils/AppError.js";
 
@@ -47,14 +48,16 @@ export async function createMessageHandler(req: Request, res: Response) {
 
   const { content } = createMessageSchema.parse(req.body);
 
-  const message = await createUserMessage(
-    userId,
-    chatId,
-    content
-  );
+  const { userMessage , assistantMessage } =
+    await createUserMessageAndEnqueue(
+      userId,
+      chatId,
+      content
+    );
 
   res.status(201).json({
     success: true,
-    message
+    userMessage,
+    assistantMessage
   });
 }
