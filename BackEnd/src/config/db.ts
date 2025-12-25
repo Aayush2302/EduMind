@@ -6,6 +6,9 @@ import { AppError } from '../utils/AppError.js';
 
 export async function connectDB(): Promise<void> {
   try {
+    if (!env.MONGO_URI) {
+      throw new Error('MONGO_URI environment variable is not defined');
+    }
     await mongoose.connect(env.MONGO_URI);
     console.log('✅ MongoDB connected');
   } catch (error) {

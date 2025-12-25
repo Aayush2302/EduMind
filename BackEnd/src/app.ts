@@ -5,11 +5,14 @@ import router from './routes/auth.routes.js';
 import folderRoutes from './routes/folder.routes.js';
 import chatRoutes from './routes/chat.routes.js';
 import messageRoutes from "./routes/message.routes.js";
-
+import { env } from './config/env.js';
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+    origin: env.CLIENT_URL,
+    credentials: true,
+}));
 app.use(morgan('dev'));
 app.use(express.json());
 
