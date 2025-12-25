@@ -23,14 +23,28 @@ const RegisterForm = () => {
     setIsLoading(true);
     
     try {
+      console.log('🔐 Starting signup...');
       const response = await signup({ email, password, name });
       
-      // Store user info in localStorage (optional)
-      localStorage.setItem('user', JSON.stringify(response.user));
+      console.log('✅ Signup successful');
+      console.log('📦 Response:', {
+        hasTokens: !!response.tokens,
+        hasUser: !!response.user,
+        tokenPreview: response.tokens?.access?.substring(0, 30) + '...'
+      });
+      
+      // Store user info in localStorage (optional, for UI display)
+      if (response.user) {
+        localStorage.setItem('user', JSON.stringify(response.user));
+        console.log('👤 User info stored');
+      }
+      
+      // Token is already stored by authService.signup()
       
       toast.success("Account created successfully!");
       navigate("/dashboard");
     } catch (error: any) {
+      console.error('❌ Signup failed:', error);
       toast.error(error.message || "Signup failed");
     } finally {
       setIsLoading(false);
@@ -41,7 +55,7 @@ const RegisterForm = () => {
     setIsGoogleLoading(true);
     
     try {
-      console.log('🎯 Google Login Success!');
+      console.log('🎯 Google Sign Up Success!');
       console.log('📦 Credential Response:', credentialResponse);
       console.log('🔑 ID Token exists:', !!credentialResponse.credential);
       
@@ -49,23 +63,35 @@ const RegisterForm = () => {
         throw new Error('No credential received from Google');
       }
       
-      // credentialResponse.credential contains the Google ID token
       const response = await googleSignIn(credentialResponse.credential);
       
-      // Store user info in localStorage (optional)
-      localStorage.setItem('user', JSON.stringify(response.user));
+      console.log('✅ Google sign up successful');
+      console.log('📦 Response:', {
+        hasTokens: !!response.tokens,
+        hasUser: !!response.user,
+        tokenPreview: response.tokens?.access?.substring(0, 30) + '...'
+      });
       
-      toast.success("Signed in with Google!");
+      // Store user info in localStorage (optional, for UI display)
+      if (response.user) {
+        localStorage.setItem('user', JSON.stringify(response.user));
+        console.log('👤 User info stored');
+      }
+      
+      // Token is already stored by authService.googleSignIn()
+      
+      toast.success("Signed up with Google!");
       navigate("/dashboard");
     } catch (error: any) {
-      console.error('❌ Google Sign In Error:', error);
-      toast.error(error.message || "Google sign in failed");
+      console.error('❌ Google Sign Up Error:', error);
+      toast.error(error.message || "Google sign up failed");
     } finally {
       setIsGoogleLoading(false);
     }
   };
 
   const handleGoogleError = () => {
+    console.error('❌ Google authentication failed');
     toast.error("Google sign up failed");
     setIsGoogleLoading(false);
   };
@@ -87,17 +113,23 @@ const RegisterForm = () => {
 
         {/* Google Sign-up Button */}
         <div className="mb-4">
-          <GoogleLogin
-            onSuccess={handleGoogleSuccess}
-            onError={handleGoogleError}
-            useOneTap
-            theme="outline"
-            size="large"
-            text="continue_with"
-            shape="rectangular"
-            logo_alignment="left"
-            width="100%"
-          />
+          {isGoogleLoading ? (
+            <Button className="w-full" disabled>
+              Signing up with Google...
+            </Button>
+          ) : (
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              useOneTap
+              theme="outline"
+              size="large"
+              text="signup_with"
+              shape="rectangular"
+              logo_alignment="left"
+              width="100%"
+            />
+          )}
         </div>
 
         {/* Divider */}
@@ -122,6 +154,7 @@ const RegisterForm = () => {
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
+              disabled={isLoading}
             />
           </div>
 
@@ -136,6 +169,7 @@ const RegisterForm = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              disabled={isLoading}
             />
           </div>
 
@@ -151,6 +185,7 @@ const RegisterForm = () => {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
+              disabled={isLoading}
             />
           </div>
 
@@ -177,7 +212,7 @@ const RegisterForm = () => {
 
 const Register = () => {
   if (!GOOGLE_CLIENT_ID) {
-    console.warn("Google Client ID not configured");
+    console.warn("⚠️ Google Client ID not configured");
   }
 
   return (

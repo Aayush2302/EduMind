@@ -22,14 +22,28 @@ const LoginForm = () => {
     setIsLoading(true);
     
     try {
+      console.log('🔐 Starting email/password login...');
       const response = await signin({ email, password });
       
-      // Store user info in localStorage (optional)
-      localStorage.setItem('user', JSON.stringify(response.user));
+      console.log('✅ Login successful');
+      console.log('📦 Response:', {
+        hasTokens: !!response.tokens,
+        hasUser: !!response.user,
+        tokenPreview: response.tokens?.access?.substring(0, 30) + '...'
+      });
+      
+      // Store user info in localStorage (optional, for UI display)
+      if (response.user) {
+        localStorage.setItem('user', JSON.stringify(response.user));
+        console.log('👤 User info stored');
+      }
+      
+      // Token is already stored by authService.signin()
       
       toast.success("Welcome back!");
       navigate("/dashboard");
     } catch (error: any) {
+      console.error('❌ Login failed:', error);
       toast.error(error.message || "Login failed");
     } finally {
       setIsLoading(false);
@@ -48,11 +62,22 @@ const LoginForm = () => {
         throw new Error('No credential received from Google');
       }
       
-      // credentialResponse.credential contains the Google ID token
       const response = await googleSignIn(credentialResponse.credential);
       
-      // Store user info in localStorage (optional)
-      localStorage.setItem('user', JSON.stringify(response.user));
+      console.log('✅ Google sign in successful');
+      console.log('📦 Response:', {
+        hasTokens: !!response.tokens,
+        hasUser: !!response.user,
+        tokenPreview: response.tokens?.access?.substring(0, 30) + '...'
+      });
+      
+      // Store user info in localStorage (optional, for UI display)
+      if (response.user) {
+        localStorage.setItem('user', JSON.stringify(response.user));
+        console.log('👤 User info stored');
+      }
+      
+      // Token is already stored by authService.googleSignIn()
       
       toast.success("Signed in with Google!");
       navigate("/dashboard");
@@ -65,6 +90,7 @@ const LoginForm = () => {
   };
 
   const handleGoogleError = () => {
+    console.error('❌ Google authentication failed');
     toast.error("Google sign in failed");
     setIsGoogleLoading(false);
   };
@@ -86,17 +112,23 @@ const LoginForm = () => {
 
         {/* Google Sign-in Button */}
         <div className="mb-4">
-          <GoogleLogin
-            onSuccess={handleGoogleSuccess}
-            onError={handleGoogleError}
-            useOneTap
-            theme="outline"
-            size="large"
-            text="continue_with"
-            shape="rectangular"
-            logo_alignment="left"
-            width="100%"
-          />
+          {isGoogleLoading ? (
+            <Button className="w-full" disabled>
+              Signing in with Google...
+            </Button>
+          ) : (
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              useOneTap
+              theme="outline"
+              size="large"
+              text="continue_with"
+              shape="rectangular"
+              logo_alignment="left"
+              width="100%"
+            />
+          )}
         </div>
 
         {/* Divider */}
@@ -121,6 +153,7 @@ const LoginForm = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              disabled={isLoading}
             />
           </div>
 
@@ -135,6 +168,7 @@ const LoginForm = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              disabled={isLoading}
             />
           </div>
 
@@ -161,7 +195,7 @@ const LoginForm = () => {
 
 const Login = () => {
   if (!GOOGLE_CLIENT_ID) {
-    console.warn("Google Client ID not configured");
+    console.warn("⚠️ Google Client ID not configured");
   }
 
   return (
