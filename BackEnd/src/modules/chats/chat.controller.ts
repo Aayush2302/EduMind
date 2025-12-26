@@ -9,6 +9,8 @@ import {
 } from "./chat.service.js";
 import { AppError } from "../../utils/AppError.js";
 
+
+
 /**
  * Create a new chat inside a folder
  */
@@ -132,3 +134,5 @@ export async function archiveChatHandler(req: Request, res: Response) {
         chat
     });
 }
+
+

@@ -2,6 +2,8 @@ import { Chat } from '../../models/Chat.js';
 import { SubjectFolder } from '../../models/Folder.js';
 import { AppError } from '../../utils/AppError.js';
 
+
+
 /**
  * Create a new chat under a folder
  */

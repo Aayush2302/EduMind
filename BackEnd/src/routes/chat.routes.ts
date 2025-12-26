@@ -2,7 +2,7 @@ import { Router } from 'express';
 import {
     createChatHandler,
     getChatsHandler,
-    archiveChatHandler
+    archiveChatHandler,
 } from '../modules/chats/chat.controller.js';
 import { validateUserContext } from '../middleware/validateUserContext.js';
 
@@ -19,5 +19,7 @@ router.get('/folders/:folderId/chats', getChatsHandler);
 
 // Archive (soft delete) a chat
 router.delete('/chats/:chatId', archiveChatHandler);
+
+// router.get('/chats', getAllUserChats);
 
 export default router;

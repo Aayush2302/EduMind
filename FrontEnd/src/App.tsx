@@ -8,7 +8,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Subjects from "./pages/Subjects";
-import Chats from "./pages/Chats";
+import Chats from "./pages/ChatsPage";
 import Documents from "./pages/Documents";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
