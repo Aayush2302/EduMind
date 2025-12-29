@@ -1,4 +1,4 @@
-import { log } from 'node:console';
+// import { log } from 'node:console';
 import { Chat } from '../../models/Chat.js';
 import { SubjectFolder } from '../../models/Folder.js';
 import { AppError } from '../../utils/AppError.js';

@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 import { createMessageSchema } from "./message.schema.js";
 import {
   getMessages,
-  createUserMessage,
   createUserMessageAndEnqueue
 } from "./message.service.js";
 import { AppError } from "../../utils/AppError.js";

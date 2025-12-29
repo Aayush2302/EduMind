@@ -684,7 +684,7 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
     }
 };
 
-export const authHealthCheck = (req: Request, res: Response): void => {
+export const authHealthCheck = (_req: Request, res: Response): void => {
     res.status(200).json({
         service: 'Authentication Service',
         status: 'healthy',

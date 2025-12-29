@@ -9,7 +9,7 @@ import {
   getAllchatsForUser,
 } from "./chat.service.js";
 import { AppError } from "../../utils/AppError.js";
-import { success } from "zod";
+// import { success } from "zod";
 
 /**
  * Create a new chat inside a folder
