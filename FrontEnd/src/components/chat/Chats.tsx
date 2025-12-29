@@ -67,6 +67,7 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modalFileInputRef = useRef<HTMLInputElement>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Detect mobile view
   useEffect(() => {
@@ -86,6 +87,56 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
       fetchMessages(activeChat._id);
     }
   }, [activeChat?._id]);
+
+  // ========== POLLING FOR REAL-TIME UPDATES ==========
+  useEffect(() => {
+    // Start polling when there's an active chat and typing is happening
+    if (activeChat && isTyping) {
+      pollingIntervalRef.current = setInterval(() => {
+        fetchMessagesQuietly(activeChat._id);
+      }, 2000); // Poll every 2 seconds
+    }
+
+    // Cleanup polling when typing stops or chat changes
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [activeChat?._id, isTyping]);
+
+  // Fetch messages without showing loading state (for polling)
+  const fetchMessagesQuietly = async (chatId: string) => {
+  try {
+    const fetchedMessages = await getMessages(chatId);
+
+    const lastAssistantMessage = [...fetchedMessages]
+      .reverse()
+      .find(msg => msg.sender === "assistant");
+
+    if (lastAssistantMessage?.status === "completed") {
+      setIsTyping(false);
+    }
+
+    setChats(prev =>
+      prev.map(chat =>
+        chat._id === chatId
+          ? { ...chat, messages: fetchedMessages }
+          : chat
+      )
+    );
+
+    setActiveChat(prev =>
+      prev && prev._id === chatId
+        ? { ...prev, messages: fetchedMessages }
+        : prev
+    );
+  } catch (err) {
+    console.error("Polling error:", err);
+  }
+};
+
 
   const fetchChats = async () => {
     try {
@@ -274,27 +325,12 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
       setChats(chats.map((c) => (c._id === activeChat._id ? updatedChat : c)));
       setIsTyping(true);
 
-      const response = await createMessage(activeChat._id, messageContent);
+      // Send message to backend (which adds to BullMQ)
+      await createMessage(activeChat._id, messageContent);
 
-      const finalMessages = updatedMessages.map((msg) => {
-        if (msg._id.startsWith("temp-")) {
-          if (msg.sender === "user") {
-            return response.userMessage;
-          } else {
-            return response.assistantMessage;
-          }
-        }
-        return msg;
-      });
+      // Polling will now handle fetching the response
+      // The useEffect with polling will automatically fetch messages
 
-      const finalChat = {
-        ...updatedChat,
-        messages: finalMessages,
-      };
-
-      setActiveChat(finalChat);
-      setChats(chats.map((c) => (c._id === activeChat._id ? finalChat : c)));
-      setIsTyping(false);
     } catch (err) {
       console.error("Error sending message:", err);
       setError(err instanceof Error ? err.message : "Failed to send message");
@@ -334,7 +370,6 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
     }
   };
 
-  // Handler for chat selection
   const handleChatSelect = (chat: Chat) => {
     setActiveChat(chat);
   };
@@ -351,14 +386,12 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
           showNewChatButton={!!folderId}
           headerTitle={folderId ? subjectName : "All Chats"}
         />
-        {/* Error Display */}
         {error && (
           <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-sm shadow-lg z-50 flex items-center gap-2">
             {error}
             <button onClick={() => setError(null)}>×</button>
           </div>
         )}
-        {/* Modal */}
         <NewChatModal
           show={showNewChatModal}
           onClose={() => setShowNewChatModal(false)}
@@ -389,14 +422,12 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
           fileInputRef={fileInputRef}
           textareaRef={textareaRef}
         />
-        {/* Error Display */}
         {error && (
           <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-sm shadow-lg z-50 flex items-center gap-2">
             {error}
             <button onClick={() => setError(null)}>×</button>
           </div>
         )}
-        {/* Modal */}
         <NewChatModal
           show={showNewChatModal}
           onClose={() => setShowNewChatModal(false)}
@@ -414,7 +445,6 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
   // DESKTOP VIEW
   return (
     <div className="h-[calc(100vh-7rem)] flex">
-      {/* Error Display */}
       {error && (
         <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-sm shadow-lg z-50 flex items-center gap-2">
           {error}
@@ -422,7 +452,6 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
         </div>
       )}
 
-      {/* Desktop Sidebar */}
       <ChatList
         chats={chats}
         activeChat={activeChat}
@@ -436,7 +465,6 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
         headerTitle={folderId ? subjectName : "All Chats"}
       />
 
-      {/* Desktop Chat Area */}
       <div className="flex-1 flex flex-col bg-background">
         <ChatView
           chat={activeChat}
@@ -451,7 +479,6 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
         />
       </div>
 
-      {/* Modal */}
       <NewChatModal
         show={showNewChatModal}
         onClose={() => setShowNewChatModal(false)}

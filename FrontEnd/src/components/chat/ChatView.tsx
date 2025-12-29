@@ -10,7 +10,7 @@ interface Message {
   chatId: string;
   sender: "user" | "assistant";
   content: string;
-  status: "completed" | "processing";
+  status: "completed" | "processing" | "failed";
   parentMessageId?: string;
   createdAt: string;
   updatedAt: string;
