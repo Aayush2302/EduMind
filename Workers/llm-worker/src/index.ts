@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import express from "express";
+import express, { Request, Response } from "express";
 import { redis } from "./config/redis.js";
 import { connectDB } from "./config/db.js";
 import { Message } from "./models/Message.js";
@@ -51,7 +51,7 @@ async function startWorker() {
   const app = express();
   const PORT = process.env.PORT || 3001;
 
-  app.get("/", (_req, res) => {
+  app.get("/", (_req: Request, res: Response) => {
     res.status(200).json({ 
       status: "ok", 
       service: "LLM Worker",
@@ -59,7 +59,7 @@ async function startWorker() {
     });
   });
 
-  app.get("/health", (_req, res) => {
+  app.get("/health", (_req: Request, res: Response) => {
     res.status(200).json({ 
       status: "healthy", 
       service: "LLM Worker"
