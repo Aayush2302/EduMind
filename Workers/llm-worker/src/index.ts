@@ -1,4 +1,5 @@
 import { Worker } from "bullmq";
+import express from "express";
 import { redis } from "./config/redis.js";
 import { connectDB } from "./config/db.js";
 import { Message } from "./models/Message.js";
@@ -45,6 +46,30 @@ function buildPrompt({
 
 async function startWorker() {
   await connectDB();
+  
+  // ✅ Create health check server for Render.com
+  const app = express();
+  const PORT = process.env.PORT || 3001;
+
+  app.get("/", (_req, res) => {
+    res.status(200).json({ 
+      status: "ok", 
+      service: "LLM Worker",
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  app.get("/health", (_req, res) => {
+    res.status(200).json({ 
+      status: "healthy", 
+      service: "LLM Worker"
+    });
+  });
+
+  app.listen(PORT, () => {
+    console.log(`✅ Health check server running on port ${PORT}`);
+  });
+
   console.log("🚀 LLM Worker started");
 
   const worker = new Worker(
