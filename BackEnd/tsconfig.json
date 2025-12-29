@@ -4,18 +4,16 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
 
-    "rootDir": "./src",
     "outDir": "./dist",
+    "rootDir": "./src",
 
     "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-
-    "sourceMap": true,
+    "skipLibCheck": true,
 
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
 
-    "skipLibCheck": true
-  }
+    "types": ["node"]
+  },
+  "include": ["src"]
 }
