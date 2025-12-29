@@ -29,7 +29,7 @@ app.use(
 );
 
 // Handle preflight requests
-app.options("*", cors());
+// app.options("*", cors());
 
 app.use(morgan(env.NODE_ENV === "production" ? "combined" : "dev"));
 app.use(express.json());
