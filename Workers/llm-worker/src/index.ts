@@ -10,9 +10,6 @@ import { interviewPrompt } from "./prompt/interview.prompt.js";
 import { stepByStepPrompt } from "./prompt/stepBystep.prompt.js";
 import { applyRagConstraint } from "./prompt/rag.guard.js";
 
-/**
- * Build prompt based on study mode + constraint mode
- */
 function buildPrompt({
   content,
   studyMode,
@@ -46,8 +43,9 @@ function buildPrompt({
 
 async function startWorker() {
   await connectDB();
+  console.log("✅ MongoDB connected to worker");
   
-  // ✅ Create health check server for Render.com
+  // Health check server
   const app = express();
   const PORT = process.env.PORT || 3001;
 
@@ -70,11 +68,14 @@ async function startWorker() {
     console.log(`✅ Health check server running on port ${PORT}`);
   });
 
-  console.log("🚀 LLM Worker started");
+  console.log("🚀 LLM Worker started and listening for jobs...");
 
   const worker = new Worker(
     "llm-jobs",
     async job => {
+      console.log("=".repeat(50));
+      console.log("🧠 Job received:", JSON.stringify(job.data, null, 2));
+
       const {
         userMessageId,
         assistantMessageId,
@@ -82,64 +83,121 @@ async function startWorker() {
         constraintMode
       } = job.data;
 
-      console.log("🧠 Job received:", job.data);
-
-      // 1️⃣ Fetch user message (ONLY for content)
-      const userMessage = await Message.findById(userMessageId);
-      if (!userMessage || !userMessage.content) {
-        throw new Error("Invalid or empty user message");
-      }
-
-      // 2️⃣ Build prompt using JOB DATA (not Message)
-      const messages = buildPrompt({
-        content: userMessage.content,
-        studyMode,
-        constraintMode
-      });
-
-      // 3️⃣ Call GROQ with streaming
-      const stream = await groq.chat.completions.create({
-        model: "openai/gpt-oss-120b",
-        messages: messages as any,
-        temperature: 1,
-        max_completion_tokens: 8192,
-        top_p: 1,
-        stream: true,
-        reasoning_effort: "medium"
-      });
-
-      let fullResponse = "";
-
-      for await (const chunk of stream) {
-        const token = chunk.choices[0]?.delta?.content;
-        if (token) {
-          fullResponse += token;
+      try {
+        // 1️⃣ Fetch user message
+        console.log(`📥 Fetching user message: ${userMessageId}`);
+        const userMessage = await Message.findById(userMessageId);
+        
+        if (!userMessage) {
+          throw new Error(`User message not found: ${userMessageId}`);
         }
+        
+        if (!userMessage.content) {
+          throw new Error("User message content is empty");
+        }
+
+        console.log(`✅ User message found: "${userMessage.content.substring(0, 50)}..."`);
+
+        // 2️⃣ Build prompt
+        console.log(`🔨 Building prompt with mode: ${studyMode}, constraint: ${constraintMode}`);
+        const messages = buildPrompt({
+          content: userMessage.content,
+          studyMode,
+          constraintMode
+        });
+
+        // 3️⃣ Call GROQ
+        console.log("🤖 Calling GROQ API...");
+        const stream = await groq.chat.completions.create({
+          model: "openai/gpt-oss-120b",
+          messages: messages as any,
+          temperature: 1,
+          max_completion_tokens: 8192,
+          top_p: 1,
+          stream: true,
+          reasoning_effort: "medium"
+        });
+
+        let fullResponse = "";
+        let tokenCount = 0;
+
+        for await (const chunk of stream) {
+          const token = chunk.choices[0]?.delta?.content;
+          if (token) {
+            fullResponse += token;
+            tokenCount++;
+            
+            // Log progress every 50 tokens
+            if (tokenCount % 50 === 0) {
+              console.log(`📝 Generated ${tokenCount} tokens...`);
+            }
+          }
+        }
+
+        console.log(`✅ GROQ completed. Total tokens: ${tokenCount}`);
+        console.log(`📄 Response preview: "${fullResponse.substring(0, 100)}..."`);
+
+        // 4️⃣ Save to database
+        console.log(`💾 Saving response to assistant message: ${assistantMessageId}`);
+        
+        const updatedMessage = await Message.findByIdAndUpdate(
+          assistantMessageId,
+          {
+            content: fullResponse,
+            status: "completed"
+          },
+          { new: true } // Return the updated document
+        );
+
+        if (!updatedMessage) {
+          throw new Error(`Failed to update assistant message: ${assistantMessageId}`);
+        }
+
+        console.log("✅ Response saved successfully!");
+        console.log(`✅ Message status: ${updatedMessage.status}`);
+        console.log("=".repeat(50));
+
+      } catch (error: any) {
+        console.error("❌ Error in job processing:");
+        console.error(error);
+        throw error; // Re-throw to trigger the failed handler
       }
-
-      // 4️⃣ Save final AI response
-      await Message.findByIdAndUpdate(assistantMessageId, {
-        content: fullResponse,
-        status: "completed"
-      });
-
-      console.log("✅ AI response saved");
     },
     {
-      connection: redis
+      connection: redis,
+      concurrency: 1 // Process one job at a time
     }
   );
 
+  worker.on("completed", (job) => {
+    console.log(`✅ Job ${job.id} completed successfully`);
+  });
+
   worker.on("failed", async (job, err) => {
-    console.error("❌ Job failed:", err.message);
+    console.error("=".repeat(50));
+    console.error(`❌ Job ${job?.id} failed:`, err.message);
+    console.error("Stack trace:", err.stack);
+    console.error("=".repeat(50));
 
     if (job?.data?.assistantMessageId) {
-      await Message.findByIdAndUpdate(job.data.assistantMessageId, {
-        status: "failed",
-        content: "AI failed to generate response"
-      });
+      try {
+        await Message.findByIdAndUpdate(job.data.assistantMessageId, {
+          status: "failed",
+          content: "AI failed to generate response. Please try again."
+        });
+        console.log(`💾 Updated message status to 'failed'`);
+      } catch (updateError) {
+        console.error("❌ Failed to update message status:", updateError);
+      }
     }
+  });
+
+  worker.on("error", (err) => {
+    console.error("❌ Worker error:", err);
   });
 }
 
-startWorker();
+startWorker().catch(err => {
+  console.error("❌ Failed to start worker:", err);
+  process.exit(1);
+});

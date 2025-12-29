@@ -12,7 +12,7 @@ export async function createChat(
     userId: string,
     folderId: string,
     title: string,
-    studyMode?: "simple" | "step" | "interview"
+    studyMode?: "simple" | "interview" | "step-by-step" 
 ) {
     console.log("[SERVICE] createChat called", {
         userId,
