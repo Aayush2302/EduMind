@@ -1,12 +1,7 @@
-import { Redis } from 'ioredis';
-import dotenv from 'dotenv';
+import { Redis } from "ioredis";
+import { env } from "./env.js";
 
-dotenv.config();
-
-
-export const redis = new Redis({
-    host: process.env.REDIS_HOST,
-    port: Number(process.env.REDIS_PORT),
-    maxRetriesPerRequest: null
+export const redis = new Redis(env.REDIS_URL, {
+  maxRetriesPerRequest: null,
+  tls: {}, // required for Upstash
 });
-
