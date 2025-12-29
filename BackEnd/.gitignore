@@ -1,6 +1,5 @@
 ./.env
 .env
-/src/config/env.ts
 
 ./node_modules
 /node_modules
