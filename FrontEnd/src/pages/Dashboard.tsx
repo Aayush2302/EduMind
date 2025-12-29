@@ -265,15 +265,15 @@ const Dashboard = () => {
             </CardHeader>
           </Card>
         </Link>
-        <Link to="/chats">
-          <Card variant="hover" className="p-6">
-            <CardHeader className="p-0">
-              <MessageSquare className="w-5 h-5 text-text-secondary mb-3" />
-              <CardTitle className="text-base">Start Chat</CardTitle>
-              <CardDescription>Begin a new AI conversation</CardDescription>
-            </CardHeader>
-          </Card>
-        </Link>
+        <Link to="/chats"> {/* Remove query params */}
+  <Card variant="hover" className="p-6">
+    <CardHeader className="p-0">
+      <MessageSquare className="w-5 h-5 text-text-secondary mb-3" />
+      <CardTitle className="text-base">Start Chat</CardTitle>
+      <CardDescription>View all your conversations</CardDescription>
+    </CardHeader>
+  </Card>
+</Link>
         <Link to="/documents">
           <Card variant="hover" className="p-6">
             <CardHeader className="p-0">

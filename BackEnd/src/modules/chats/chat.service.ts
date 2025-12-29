@@ -1,3 +1,4 @@
+import { log } from 'node:console';
 import { Chat } from '../../models/Chat.js';
 import { SubjectFolder } from '../../models/Folder.js';
 import { AppError } from '../../utils/AppError.js';
@@ -111,4 +112,20 @@ export async function archiveChat(
     }
 
     return chat;
+}
+
+
+export async function getAllchatsForUser(userId: string){
+    // get user's all non archived chats
+    const folders = await SubjectFolder.find({
+        ownerId: userId,
+        isDeleted : false
+    }).select('_id');
+
+    const folderIds = folders.map(f => f._id);
+
+    return await Chat.find({
+        folderId: { $in: folderIds },
+        isArchived: false
+    }).sort({ updatedAt: -1 });
 }

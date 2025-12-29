@@ -3,6 +3,7 @@ import {
     createChatHandler,
     getChatsHandler,
     archiveChatHandler,
+    getAllChatsHandler,
 } from '../modules/chats/chat.controller.js';
 import { validateUserContext } from '../middleware/validateUserContext.js';
 
@@ -21,5 +22,7 @@ router.get('/folders/:folderId/chats', getChatsHandler);
 router.delete('/chats/:chatId', archiveChatHandler);
 
 // router.get('/chats', getAllUserChats);
+
+router.get('/chats', getAllChatsHandler);
 
 export default router;

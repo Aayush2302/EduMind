@@ -111,3 +111,16 @@ export const updateChatTitle = async (
   const data = await res.json();
   return data.chat;
 };
+
+// get all chats for user 
+export const getAllChatsForUser = async() => {
+  const res = await apiFetch(`/api/chats`, {
+    method: "GET",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.message || "Failed to fetch chats");
+  }
+  const data = await res.json();
+  return data.chats;
+}
