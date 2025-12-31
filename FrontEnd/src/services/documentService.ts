@@ -26,6 +26,9 @@ export interface ListDocumentsResponse {
   remaining?: number;
 }
 
+// Import the same API_BASE_URL used by apiFetch to ensure consistency
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
 /**
  * Get auth headers by copying what apiFetch does
  */
@@ -63,10 +66,9 @@ export const uploadDocument = async (
   formData.append("chatId", chatId);
 
   const authHeaders = getAuthHeaders();
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
   
   console.log("📤 Upload attempt:", {
-    url: `${apiUrl}/api/documents/upload`,
+    url: `${API_BASE_URL}/api/documents/upload`,
     fileName: file.name,
     fileSize: file.size,
     chatId,
@@ -74,7 +76,7 @@ export const uploadDocument = async (
     hasToken: Object.keys(authHeaders).length > 0,
   });
 
-  const response = await fetch(`${apiUrl}/api/documents/upload`, {
+  const response = await fetch(`${API_BASE_URL}/api/documents/upload`, {
     method: "POST",
     headers: {
       ...authHeaders,
@@ -122,10 +124,9 @@ export const getAllUserDocuments = async (): Promise<ListDocumentsResponse> => {
  */
 export const downloadDocument = async (documentId: string): Promise<Blob> => {
   const authHeaders = getAuthHeaders();
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
   
   const response = await fetch(
-    `${apiUrl}/api/documents/${documentId}/download`,
+    `${API_BASE_URL}/api/documents/${documentId}/download`,
     {
       method: "GET",
       headers: authHeaders,
