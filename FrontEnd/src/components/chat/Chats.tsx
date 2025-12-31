@@ -6,12 +6,14 @@ import {
   getAllChatsForUser,
 } from "@/services/chatService";
 import { getMessages, createMessage } from "@/services/messageService";
+import { uploadDocument } from "@/services/documentService"; // 🆕 Import document service
 import { NewChatModal } from "./NewChatModal";
 import { ChatList } from "./ChatList";
 import { ChatView } from "./ChatView";
 import { MobileChatList } from "./MobileChatList";
 import { MobileChatView } from "./MobileChatView";
-
+import { toast } from 'sonner';
+ 
 interface Message {
   _id: string;
   chatId: string;
@@ -58,6 +60,7 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isUploadingDocument, setIsUploadingDocument] = useState(false); // 🆕 Upload state
   const [newChatSettings, setNewChatSettings] = useState<ChatSettings>({
     studyMode: "simple",
     constraintMode: "allowed",
@@ -69,7 +72,6 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
   const modalFileInputRef = useRef<HTMLInputElement>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Detect mobile view
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 768);
@@ -88,16 +90,13 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
     }
   }, [activeChat?._id]);
 
-  // ========== POLLING FOR REAL-TIME UPDATES ==========
   useEffect(() => {
-    // Start polling when there's an active chat and typing is happening
     if (activeChat && isTyping) {
       pollingIntervalRef.current = setInterval(() => {
         fetchMessagesQuietly(activeChat._id);
-      }, 2000); // Poll every 2 seconds
+      }, 2000);
     }
 
-    // Cleanup polling when typing stops or chat changes
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
@@ -106,37 +105,33 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
     };
   }, [activeChat?._id, isTyping]);
 
-  // Fetch messages without showing loading state (for polling)
   const fetchMessagesQuietly = async (chatId: string) => {
-  try {
-    const fetchedMessages = await getMessages(chatId);
+    try {
+      const fetchedMessages = await getMessages(chatId);
 
-    const lastAssistantMessage = [...fetchedMessages]
-      .reverse()
-      .find(msg => msg.sender === "assistant");
+      const lastAssistantMessage = [...fetchedMessages]
+        .reverse()
+        .find((msg) => msg.sender === "assistant");
 
-    if (lastAssistantMessage?.status === "completed") {
-      setIsTyping(false);
+      if (lastAssistantMessage?.status === "completed") {
+        setIsTyping(false);
+      }
+
+      setChats((prev) =>
+        prev.map((chat) =>
+          chat._id === chatId ? { ...chat, messages: fetchedMessages } : chat
+        )
+      );
+
+      setActiveChat((prev) =>
+        prev && prev._id === chatId
+          ? { ...prev, messages: fetchedMessages }
+          : prev
+      );
+    } catch (err) {
+      console.error("Polling error:", err);
     }
-
-    setChats(prev =>
-      prev.map(chat =>
-        chat._id === chatId
-          ? { ...chat, messages: fetchedMessages }
-          : chat
-      )
-    );
-
-    setActiveChat(prev =>
-      prev && prev._id === chatId
-        ? { ...prev, messages: fetchedMessages }
-        : prev
-    );
-  } catch (err) {
-    console.error("Polling error:", err);
-  }
-};
-
+  };
 
   const fetchChats = async () => {
     try {
@@ -231,11 +226,38 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
       setIsLoading(true);
       setError(null);
 
+      // 1️⃣ Create the chat first
       const newChat = await createChat(folderId, {
         title: newChatSettings.chatTitle.trim(),
         studyMode: mapStudyModeToBackend(newChatSettings.studyMode),
       });
 
+      console.log("✅ Chat created:", newChat._id);
+
+      // 2️⃣ Upload document if provided
+      if (newChatSettings.document) {
+        console.log("📤 Uploading document:", newChatSettings.document.name);
+        setIsUploadingDocument(true);
+
+        try {
+          const uploadedDoc = await uploadDocument(
+            newChat._id,
+            newChatSettings.document
+          );
+          console.log("✅ Document uploaded:", uploadedDoc);
+        } catch (uploadErr) {
+          console.error("❌ Document upload failed:", uploadErr);
+          setError(
+            `Chat created but document upload failed: ${
+              uploadErr instanceof Error ? uploadErr.message : "Unknown error"
+            }`
+          );
+        } finally {
+          setIsUploadingDocument(false);
+        }
+      }
+
+      // 3️⃣ Add chat to list
       const enrichedChat: Chat = {
         ...newChat,
         preview: "Start a conversation...",
@@ -325,12 +347,7 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
       setChats(chats.map((c) => (c._id === activeChat._id ? updatedChat : c)));
       setIsTyping(true);
 
-      // Send message to backend (which adds to BullMQ)
       await createMessage(activeChat._id, messageContent);
-
-      // Polling will now handle fetching the response
-      // The useEffect with polling will automatically fetch messages
-
     } catch (err) {
       console.error("Error sending message:", err);
       setError(err instanceof Error ? err.message : "Failed to send message");
@@ -356,16 +373,72 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
     alert("PDF generation would be triggered here");
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 🆕 Handle file upload for active chat
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      console.log("File uploaded:", file.name);
+    if (!file || !activeChat) return;
+     const toastId = toast.loading(`Uploading "${file.name}"...`);
+
+
+    if (file.type !== "application/pdf") {
+      setError("Only PDF files are allowed");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError("File size must be less than 10MB");
+      return;
+    }
+
+    try {
+      setIsUploadingDocument(true);
+      setError(null);
+
+      console.log("📤 Uploading document to active chat:", file.name);
+
+      const uploadedDoc = await uploadDocument(activeChat._id, file);
+
+       toast.success(`Document "${file.name}" uploaded successfully!`, {
+      id: toastId,
+      duration: 3000,
+    });
+
+      console.log("✅ Document uploaded successfully:", uploadedDoc);
+
+      // Show success message
+      setError(null);
+
+      // Clear file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch (err) {
+
+      toast.error(`Failed to upload "${file.name}"`, {
+      id: toastId,
+      duration: 4000,
+    });
+
+      console.error("❌ Upload failed:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to upload document"
+      );
+    } finally {
+      setIsUploadingDocument(false);
     }
   };
 
   const handleModalFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.type !== "application/pdf") {
+        setError("Only PDF files are allowed");
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setError("File size must be less than 10MB");
+        return;
+      }
       setNewChatSettings({ ...newChatSettings, document: file });
     }
   };
@@ -398,7 +471,7 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
           settings={newChatSettings}
           onSettingsChange={setNewChatSettings}
           onCreateChat={handleCreateChat}
-          isLoading={isLoading}
+          isLoading={isLoading || isUploadingDocument}
           modalFileInputRef={modalFileInputRef}
           onFileUpload={handleModalFileUpload}
         />
@@ -428,16 +501,6 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
             <button onClick={() => setError(null)}>×</button>
           </div>
         )}
-        <NewChatModal
-          show={showNewChatModal}
-          onClose={() => setShowNewChatModal(false)}
-          settings={newChatSettings}
-          onSettingsChange={setNewChatSettings}
-          onCreateChat={handleCreateChat}
-          isLoading={isLoading}
-          modalFileInputRef={modalFileInputRef}
-          onFileUpload={handleModalFileUpload}
-        />
       </>
     );
   }
@@ -451,6 +514,7 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
           <button onClick={() => setError(null)}>×</button>
         </div>
       )}
+
 
       <ChatList
         chats={chats}
@@ -485,7 +549,7 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
         settings={newChatSettings}
         onSettingsChange={setNewChatSettings}
         onCreateChat={handleCreateChat}
-        isLoading={isLoading}
+        isLoading={isLoading || isUploadingDocument}
         modalFileInputRef={modalFileInputRef}
         onFileUpload={handleModalFileUpload}
       />

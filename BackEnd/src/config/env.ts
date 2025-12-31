@@ -23,6 +23,9 @@ const envSchema = z.object({
 
   // 🔑 THIS is the important one
   REDIS_URL: z.string().min(1, "REDIS_URL is required"),
+
+  SUPABASE_URL : z.string().min(1,"SUPABASE_URL is required"),
+  SUPABASE_SERVICE_ROLE_KEY : z.string().min(1, "SUPABASE_SERVICE_ROLE_KEY is required")
 });
 
 const parsed = envSchema.safeParse(process.env);

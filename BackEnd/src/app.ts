@@ -7,6 +7,7 @@ import authRoutes from "./routes/auth.routes.js";
 import folderRoutes from "./routes/folder.routes.js";
 import chatRoutes from "./routes/chat.routes.js";
 import messageRoutes from "./routes/message.routes.js";
+import documentRoutes from "./routes/document.routes.js";
 import { env } from "./config/env.js";
 
 const app = express();
@@ -47,7 +48,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/folders", folderRoutes);
 app.use("/api/", chatRoutes);
 app.use("/api/", messageRoutes);
-
+app.use("/api/",documentRoutes);
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error("❌ Error:", err);
   const statusCode = err.statusCode || err.status || 500;

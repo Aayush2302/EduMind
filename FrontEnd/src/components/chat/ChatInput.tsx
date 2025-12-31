@@ -41,9 +41,19 @@ export const ChatInput = ({
           size="icon"
           className="h-8 w-8"
           onClick={() => setShowAttachMenu(!showAttachMenu)}
+          disabled={disabled}
         >
-          <Paperclip className="w-4 h-4 text-text-secondary" />
+          <Paperclip className="w-4 h-4" />
         </Button>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          accept=".pdf,.doc,.docx,.txt"
+          onChange={onFileUpload}
+          disabled={disabled}
+        />
 
         <AnimatePresence>
           {showAttachMenu && (
@@ -59,17 +69,11 @@ export const ChatInput = ({
                   setShowAttachMenu(false);
                 }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-surface-hover transition-colors"
+                disabled={disabled}
               >
                 <Upload className="w-4 h-4 text-text-secondary" />
                 Upload Document
               </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                accept=".pdf,.doc,.docx,.txt"
-                onChange={onFileUpload}
-              />
             </motion.div>
           )}
         </AnimatePresence>
