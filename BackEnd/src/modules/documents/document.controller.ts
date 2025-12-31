@@ -4,17 +4,37 @@ import { v4 as uuidv4 } from "uuid";
 import { supabaseAdmin } from "../../config/supabase.js";
 import { DocumentModel } from "../../models/Document.js";
 import { AppError } from "../../utils/AppError.js";
+import { Chat } from "../../models/Chat.js";
+import { SubjectFolder } from "../../models/Folder.js";
+
+const MAX_DOCUMENTS_PER_USER = 15;
+
+/**
+ * Check if user has reached document limit
+ */
+async function checkDocumentLimit(userId: string): Promise<void> {
+  const count = await DocumentModel.countDocuments({ ownerId: userId });
+  
+  if (count >= MAX_DOCUMENTS_PER_USER) {
+    throw new AppError(
+      `Document limit reached. You can upload maximum ${MAX_DOCUMENTS_PER_USER} documents. Please delete some documents to upload new ones.`,
+      400
+    );
+  }
+}
 
 /**
  * Upload PDF to Supabase Storage
  */
 export async function uploadPdfHandler(req: Request, res: Response) {
   try {
-    // Get authenticated user from YOUR auth middleware
     const userId = req.userContext!.userId;
     const { chatId } = req.body;
 
     console.log("📤 Upload request:", { userId, chatId, hasFile: !!req.file });
+
+    // Check document limit BEFORE upload
+    await checkDocumentLimit(userId);
 
     // Validations
     if (!req.file) {
@@ -79,7 +99,7 @@ export async function uploadPdfHandler(req: Request, res: Response) {
         fileName: doc.fileName,
         size: doc.size,
         status: doc.status,
-        downloadUrl: urlData?.signedUrl, // Temporary URL
+        downloadUrl: urlData?.signedUrl,
         createdAt: doc.createdAt,
       },
     });
@@ -90,8 +110,73 @@ export async function uploadPdfHandler(req: Request, res: Response) {
 }
 
 /**
+ * Get all documents for the authenticated user with chat and folder details
+ */
+export async function getAllUserDocumentsHandler(req: Request, res: Response) {
+  try {
+    const userId = req.userContext!.userId;
+
+    console.log("📋 Fetching all documents for user:", userId);
+
+    // Get all documents for this user
+    const documents = await DocumentModel.find({ ownerId: userId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Get unique chat IDs
+    const chatIds = [...new Set(documents.map(doc => doc.chatId))];
+
+    // Fetch all chats with their folder info
+    const chats = await Chat.find({ _id: { $in: chatIds } })
+      .select('_id title folderId')
+      .lean();
+
+    // Get unique folder IDs
+    const folderIds = [...new Set(chats.map(chat => chat.folderId).filter(Boolean))];
+
+    // Fetch all folders
+    const folders = await SubjectFolder.find({ _id: { $in: folderIds } })
+      .select('_id name')
+      .lean();
+
+    // Create lookup maps
+    const chatMap = new Map(chats.map(chat => [chat._id.toString(), chat]));
+    const folderMap = new Map(folders.map(folder => [folder._id.toString(), folder]));
+
+    // Enrich documents with chat and folder info
+    const enrichedDocuments = documents.map(doc => {
+      const chat = chatMap.get(doc.chatId.toString());
+      const folder = chat?.folderId ? folderMap.get(chat.folderId.toString()) : null;
+
+      return {
+        id: doc._id,
+        fileName: doc.fileName,
+        size: doc.size,
+        status: doc.status,
+        createdAt: doc.createdAt,
+        chatId: doc.chatId,
+        chatTitle: chat?.title || 'Unknown Chat',
+        folderName: folder?.name || 'No Folder',
+      };
+    });
+
+    console.log(`✅ Found ${enrichedDocuments.length} documents`);
+
+    res.status(200).json({
+      success: true,
+      documents: enrichedDocuments,
+      total: enrichedDocuments.length,
+      limit: MAX_DOCUMENTS_PER_USER,
+      remaining: MAX_DOCUMENTS_PER_USER - enrichedDocuments.length,
+    });
+  } catch (error) {
+    console.error("❌ Get all documents error:", error);
+    throw error;
+  }
+}
+
+/**
  * Download/Retrieve PDF from Supabase Storage
- * Used for RAG processing
  */
 export async function downloadPdfHandler(req: Request, res: Response) {
   try {
@@ -103,7 +188,7 @@ export async function downloadPdfHandler(req: Request, res: Response) {
     // Get document metadata from MongoDB
     const doc = await DocumentModel.findOne({
       _id: documentId,
-      ownerId: userId, // Security: User can only download their own files
+      ownerId: userId,
     });
 
     if (!doc) {
@@ -131,7 +216,6 @@ export async function downloadPdfHandler(req: Request, res: Response) {
       `attachment; filename="${doc.fileName}"`
     );
     
-    // Convert blob to buffer
     const buffer = Buffer.from(await data.arrayBuffer());
     res.send(buffer);
   } catch (error) {
@@ -142,11 +226,9 @@ export async function downloadPdfHandler(req: Request, res: Response) {
 
 /**
  * Get PDF buffer for RAG processing (internal use)
- * This is what you'll use for RAG - doesn't send to client
  */
 export async function getPdfBufferForRAG(documentId: string): Promise<Buffer> {
   try {
-    // Get document metadata
     const doc = await DocumentModel.findById(documentId);
 
     if (!doc) {
@@ -155,7 +237,6 @@ export async function getPdfBufferForRAG(documentId: string): Promise<Buffer> {
 
     console.log("🤖 Fetching PDF for RAG:", doc.storagePath);
 
-    // Download from Supabase
     const { data, error } = await supabaseAdmin.storage
       .from("pdf-uploads")
       .download(doc.storagePath);
@@ -164,9 +245,7 @@ export async function getPdfBufferForRAG(documentId: string): Promise<Buffer> {
       throw new Error(`Failed to download PDF: ${error.message}`);
     }
 
-    // Convert blob to buffer for processing
     const buffer = Buffer.from(await data.arrayBuffer());
-    
     console.log("✅ PDF buffer ready for RAG processing");
     
     return buffer;
@@ -177,12 +256,14 @@ export async function getPdfBufferForRAG(documentId: string): Promise<Buffer> {
 }
 
 /**
- * Delete PDF from Supabase Storage
+ * Delete PDF from Supabase Storage and MongoDB
  */
 export async function deletePdfHandler(req: Request, res: Response) {
   try {
     const userId = req.userContext!.userId;
     const { documentId } = req.params;
+
+    console.log("🗑️ Delete request:", { userId, documentId });
 
     // Get document metadata
     const doc = await DocumentModel.findOne({
@@ -194,22 +275,25 @@ export async function deletePdfHandler(req: Request, res: Response) {
       throw new AppError("Document not found or access denied", 404);
     }
 
-    console.log("🗑️ Deleting from Supabase:", doc.storagePath);
+    console.log("☁️ Deleting from Supabase:", doc.storagePath);
 
-    // Delete from Supabase
+    // Delete from Supabase Storage
     const { error } = await supabaseAdmin.storage
       .from("pdf-uploads")
       .remove([doc.storagePath]);
 
     if (error) {
       console.error("❌ Supabase delete error:", error);
-      throw new AppError(`Failed to delete PDF: ${error.message}`, 500);
+      // Don't throw error if file doesn't exist in storage
+      if (!error.message.includes("not found")) {
+        throw new AppError(`Failed to delete PDF: ${error.message}`, 500);
+      }
     }
 
     // Delete metadata from MongoDB
     await DocumentModel.findByIdAndDelete(documentId);
 
-    console.log("✅ Document deleted successfully");
+    console.log("✅ Document deleted successfully from both Supabase and MongoDB");
 
     res.status(200).json({
       success: true,
@@ -222,7 +306,7 @@ export async function deletePdfHandler(req: Request, res: Response) {
 }
 
 /**
- * List all documents for a chat
+ * List all documents for a specific chat
  */
 export async function listChatDocumentsHandler(req: Request, res: Response) {
   try {

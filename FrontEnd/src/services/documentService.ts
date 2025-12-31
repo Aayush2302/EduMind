@@ -8,6 +8,9 @@ export interface Document {
   status: "uploaded" | "processing" | "processed" | "failed";
   downloadUrl?: string;
   createdAt: string;
+  chatId: string;
+  chatTitle?: string;
+  folderName?: string;
 }
 
 export interface UploadDocumentResponse {
@@ -18,16 +21,17 @@ export interface UploadDocumentResponse {
 export interface ListDocumentsResponse {
   success: boolean;
   documents: Document[];
+  total?: number;
+  limit?: number;
+  remaining?: number;
 }
 
 /**
  * Get auth headers by copying what apiFetch does
- * This ensures we use the EXACT same authentication as other services
  */
 const getAuthHeaders = (): Record<string, string> => {
   const headers: Record<string, string> = {};
   
-  // Try all common token storage locations
   const possibleTokens = [
     { key: 'token', headerName: 'Authorization', format: (t: string) => `Bearer ${t}` },
     { key: 'authToken', headerName: 'Authorization', format: (t: string) => `Bearer ${t}` },
@@ -49,9 +53,6 @@ const getAuthHeaders = (): Record<string, string> => {
 
 /**
  * Upload PDF document to a chat
- * 
- * IMPORTANT: This uses raw fetch with FormData instead of apiFetch
- * because apiFetch is designed for JSON, not multipart/form-data
  */
 export const uploadDocument = async (
   chatId: string,
@@ -77,10 +78,8 @@ export const uploadDocument = async (
     method: "POST",
     headers: {
       ...authHeaders,
-      // IMPORTANT: Do NOT set Content-Type header
-      // Browser will automatically set it with proper boundary for multipart/form-data
     },
-    credentials: "include", // Include cookies
+    credentials: "include",
     body: formData,
   });
 
@@ -108,6 +107,17 @@ export const uploadDocument = async (
 };
 
 /**
+ * Get all documents for the authenticated user
+ */
+export const getAllUserDocuments = async (): Promise<ListDocumentsResponse> => {
+  const response = await apiFetch("/api/documents/all", {
+    method: "GET",
+  });
+
+  return await response.json();
+};
+
+/**
  * Download PDF document
  */
 export const downloadDocument = async (documentId: string): Promise<Blob> => {
@@ -131,7 +141,7 @@ export const downloadDocument = async (documentId: string): Promise<Blob> => {
 };
 
 /**
- * Delete PDF document
+ * Delete PDF document (from both Supabase and MongoDB)
  */
 export const deleteDocument = async (documentId: string): Promise<void> => {
   await apiFetch(`/api/documents/${documentId}`, {
