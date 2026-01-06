@@ -1,6 +1,5 @@
 // rag-worker/src/index.ts
 import { Worker } from "bullmq";
-import express, { Request, Response } from "express";
 import { redis } from "./config/redis.js";
 import { connectDB } from "./config/db.js";
 import { DocumentModel } from "./models/Document.js";
@@ -17,30 +16,6 @@ interface RagJobData {
 async function startWorker() {
   await connectDB();
   console.log("✅ MongoDB connected to RAG worker");
-
-  // Health check server
-  const app = express();
-  const PORT = process.env.PORT || 3002;
-
-  app.get("/", (_req: Request, res: Response) => {
-    res.status(200).json({
-      status: "ok",
-      service: "RAG Worker",
-      timestamp: new Date().toISOString()
-    });
-  });
-
-  app.get("/health", (_req: Request, res: Response) => {
-    res.status(200).json({
-      status: "healthy",
-      service: "RAG Worker"
-    });
-  });
-
-  app.listen(PORT, () => {
-    console.log(`✅ Health check server running on port ${PORT}`);
-  });
-
   console.log("🚀 RAG Worker started and listening for jobs...");
 
   const worker = new Worker<RagJobData>(
@@ -123,6 +98,19 @@ async function startWorker() {
 
   worker.on("error", err => {
     console.error("❌ Worker error:", err);
+  });
+
+  // Keep the process alive
+  process.on("SIGTERM", async () => {
+    console.log("🛑 SIGTERM received, shutting down gracefully...");
+    await worker.close();
+    process.exit(0);
+  });
+
+  process.on("SIGINT", async () => {
+    console.log("🛑 SIGINT received, shutting down gracefully...");
+    await worker.close();
+    process.exit(0);
   });
 }
 
