@@ -1,5 +1,6 @@
 // rag-worker/src/index.ts
 import { Worker } from "bullmq";
+import { createServer } from "http"; // Built-in Node.js module
 import { redis } from "./config/redis.js";
 import { connectDB } from "./config/db.js";
 import { DocumentModel } from "./models/Document.js";
@@ -12,6 +13,26 @@ interface RagJobData {
   storagePath: string;
   fileName: string;
 }
+
+// 🎯 Create a simple health check server (no Express needed!)
+const PORT = process.env.PORT || 3002;
+const server = createServer((req, res) => {
+  if (req.url === '/health' || req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      status: 'ok', 
+      service: 'rag-worker',
+      uptime: process.uptime()
+    }));
+  } else {
+    res.writeHead(404);
+    res.end('Not Found');
+  }
+});
+
+server.listen(PORT, () => {
+  console.log(`🏥 Health check server running on port ${PORT}`);
+});
 
 async function startWorker() {
   await connectDB();
@@ -27,14 +48,12 @@ async function startWorker() {
       const { documentId, userId, chatId, storagePath, fileName } = job.data;
 
       try {
-        // Update status to processing
         await DocumentModel.findByIdAndUpdate(documentId, {
           status: "processing"
         });
 
-        console.log(`📥 Processing document: ${fileName}`);
+        console.log(`🔥 Processing document: ${fileName}`);
 
-        // Run RAG pipeline
         const result = await processDocumentRAG(
           documentId,
           userId,
@@ -46,7 +65,6 @@ async function startWorker() {
           throw new Error(result.error || "RAG processing failed");
         }
 
-        // Update to processed
         await DocumentModel.findByIdAndUpdate(documentId, {
           status: "processed",
           pageCount: result.pageCount
@@ -71,7 +89,7 @@ async function startWorker() {
     },
     {
       connection: redis,
-      concurrency: 1 // Process one document at a time
+      concurrency: 1
     }
   );
 
@@ -100,15 +118,17 @@ async function startWorker() {
     console.error("❌ Worker error:", err);
   });
 
-  // Keep the process alive
+  // Graceful shutdown
   process.on("SIGTERM", async () => {
     console.log("🛑 SIGTERM received, shutting down gracefully...");
+    server.close();
     await worker.close();
     process.exit(0);
   });
 
   process.on("SIGINT", async () => {
     console.log("🛑 SIGINT received, shutting down gracefully...");
+    server.close();
     await worker.close();
     process.exit(0);
   });
