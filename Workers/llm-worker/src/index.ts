@@ -13,11 +13,13 @@ import { applyRagConstraint } from "./prompt/rag.guard.js";
 function buildPrompt({
   content,
   studyMode,
-  constraintMode
+  constraintMode,
+  ragContext
 }: {
   content: string;
   studyMode: "simple" | "interview" | "step-by-step";
   constraintMode: "allowed" | "strict";
+  ragContext?: string | null; // ← NEW
 }) {
   let messages;
 
@@ -36,6 +38,14 @@ function buildPrompt({
 
     default:
       throw new Error(`Unsupported study mode: ${studyMode}`);
+  }
+
+  // ✅ NEW: Inject RAG context BEFORE constraint mode
+  if (ragContext) {
+    messages.unshift({
+      role: "system",
+      content: ragContext
+    });
   }
 
   return applyRagConstraint(messages, constraintMode);
@@ -80,7 +90,8 @@ async function startWorker() {
         userMessageId,
         assistantMessageId,
         studyMode,
-        constraintMode
+        constraintMode,
+        ragContext // ← NEW
       } = job.data;
 
       try {
@@ -98,12 +109,20 @@ async function startWorker() {
 
         console.log(`✅ User message found: "${userMessage.content.substring(0, 50)}..."`);
 
-        // 2️⃣ Build prompt
+        // ✅ NEW: Log RAG context status
+        if (ragContext) {
+          console.log("📚 RAG context available, using document knowledge");
+        } else {
+          console.log("💭 No RAG context, using general knowledge");
+        }
+
+        // 2️⃣ Build prompt with RAG context
         console.log(`🔨 Building prompt with mode: ${studyMode}, constraint: ${constraintMode}`);
         const messages = buildPrompt({
           content: userMessage.content,
           studyMode,
-          constraintMode
+          constraintMode,
+          ragContext // ← NEW
         });
 
         // 3️⃣ Call GROQ
@@ -146,7 +165,7 @@ async function startWorker() {
             content: fullResponse,
             status: "completed"
           },
-          { new: true } // Return the updated document
+          { new: true }
         );
 
         if (!updatedMessage) {
@@ -160,12 +179,12 @@ async function startWorker() {
       } catch (error: any) {
         console.error("❌ Error in job processing:");
         console.error(error);
-        throw error; // Re-throw to trigger the failed handler
+        throw error;
       }
     },
     {
       connection: redis,
-      concurrency: 1 // Process one job at a time
+      concurrency: 1
     }
   );
 

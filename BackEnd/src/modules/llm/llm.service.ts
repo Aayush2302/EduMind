@@ -6,12 +6,13 @@ export async function enqueueLLMJob(payload: {
     assistantMessageId: string;
     studyMode: string;
     constraintMode: string;
+    ragContext?: string | null; // ← NEW: Optional RAG context
 }) {
     await llmQueue.add("generate-response", payload, {
-        attempts : 3,
-        backoff : {
-            type : "exponential",
+        attempts: 3,
+        backoff: {
+            type: "exponential",
             delay: 2000
         }
-    })
+    });
 }
