@@ -176,6 +176,73 @@ export const formatFileSize = (bytes: number): string => {
 };
 
 /**
+ * Get document processing status
+ */
+export const getDocumentStatus = async (documentId: string): Promise<{
+  status: "uploaded" | "processing" | "processed" | "failed";
+  pageCount?: number;
+  fileName: string;
+}> => {
+  const response = await apiFetch(`/api/documents/${documentId}/status`, {
+    method: "GET",
+  });
+
+  const data = await response.json();
+  return data;
+};
+
+/**
+ * Get all documents status for a chat
+ */
+export const getChatDocumentsStatus = async (chatId: string): Promise<Document[]> => {
+  const response = await apiFetch(`/api/chats/${chatId}/documents/status`, {
+    method: "GET",
+  });
+
+  const data = await response.json();
+  return data.documents;
+};
+
+/**
+ * Poll document status until processed or failed
+ */
+export const pollDocumentStatus = async (
+  documentId: string,
+  onProgress: (status: string, pageCount?: number) => void,
+  intervalMs: number = 2000,
+  maxAttempts: number = 60 // 2 minutes max
+): Promise<void> => {
+  let attempts = 0;
+
+  return new Promise((resolve, reject) => {
+    const interval = setInterval(async () => {
+      try {
+        attempts++;
+
+        const { status, pageCount, fileName } = await getDocumentStatus(documentId);
+
+        onProgress(status, pageCount);
+
+        if (status === "processed") {
+          clearInterval(interval);
+          console.log(`✅ Document ${fileName} processed successfully`);
+          resolve();
+        } else if (status === "failed") {
+          clearInterval(interval);
+          reject(new Error("Document processing failed"));
+        } else if (attempts >= maxAttempts) {
+          clearInterval(interval);
+          reject(new Error("Polling timeout - document still processing"));
+        }
+      } catch (error) {
+        clearInterval(interval);
+        reject(error);
+      }
+    }, intervalMs);
+  });
+};
+
+/**
  * Helper: Trigger download in browser
  */
 export const triggerDownload = (blob: Blob, fileName: string) => {

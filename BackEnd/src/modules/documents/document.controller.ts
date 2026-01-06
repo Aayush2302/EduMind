@@ -1,7 +1,8 @@
-// src/modules/documents/document.controller.ts
+// backend/src/modules/documents/document.controller.ts
 import { Request, Response } from "express";
 import { DocumentService } from "./document.service.js";
 import { AppError } from "../../utils/AppError.js";
+import { DocumentModel } from "../../models/Document.js";
 
 /**
  * Upload PDF to Supabase Storage
@@ -79,22 +80,59 @@ export async function downloadPdfHandler(req: Request, res: Response) {
 }
 
 /**
- * Get extracted text from document
+ * Get document processing status
  */
-export async function getDocumentTextHandler(req: Request, res: Response) {
+export async function getDocumentStatusHandler(req: Request, res: Response) {
   try {
     const userId = req.userContext!.userId;
     const { documentId } = req.params;
 
-    const extractedText = await DocumentService.getExtractedText(documentId, userId);
+    const doc = await DocumentModel.findOne({
+      _id: documentId,
+      ownerId: userId,
+    });
+
+    if (!doc) {
+      throw new AppError("Document not found or access denied", 404);
+    }
 
     res.status(200).json({
       success: true,
-      documentId,
-      text: extractedText,
+      status: doc.status,
+      pageCount: doc.pageCount,
+      fileName: doc.fileName,
     });
   } catch (error) {
-    console.error("❌ [Controller] Get text handler error:", error);
+    console.error("❌ [Controller] Get status error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get all documents status for a chat (for batch check)
+ */
+export async function getChatDocumentsStatusHandler(req: Request, res: Response) {
+  try {
+    const userId = req.userContext!.userId;
+    const { chatId } = req.params;
+
+    const documents = await DocumentModel.find({
+      chatId,
+      ownerId: userId,
+    }).select("_id fileName status pageCount createdAt");
+
+    res.status(200).json({
+      success: true,
+      documents: documents.map(doc => ({
+        id: doc._id.toString(),
+        fileName: doc.fileName,
+        status: doc.status,
+        pageCount: doc.pageCount,
+        createdAt: doc.createdAt,
+      })),
+    });
+  } catch (error) {
+    console.error("❌ [Controller] Get chat documents status error:", error);
     throw error;
   }
 }

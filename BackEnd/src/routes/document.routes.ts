@@ -6,6 +6,8 @@ import {
   deletePdfHandler,
   listChatDocumentsHandler,
   getAllUserDocumentsHandler,
+  getDocumentStatusHandler,        // ← NEW
+  getChatDocumentsStatusHandler,
 } from "../modules/documents/document.controller.js";
 import { pdfUpload } from "../middleware/uploadPdf.js";
 import { validateUserContext } from "../middleware/validateUserContext.js";
@@ -47,5 +49,8 @@ router.get(
   validateUserContext,
   listChatDocumentsHandler
 );
+
+router.get("/chats/:chatId/documents/status", getChatDocumentsStatusHandler);  // ← NEW
+router.get("/documents/:documentId/status", getDocumentStatusHandler);  // ← NEW
 
 export default router;

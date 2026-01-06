@@ -6,14 +6,15 @@ import {
   getAllChatsForUser,
 } from "@/services/chatService";
 import { getMessages, createMessage } from "@/services/messageService";
-import { uploadDocument } from "@/services/documentService"; // 🆕 Import document service
+import { uploadDocument, pollDocumentStatus } from "@/services/documentService";
 import { NewChatModal } from "./NewChatModal";
 import { ChatList } from "./ChatList";
 import { ChatView } from "./ChatView";
 import { MobileChatList } from "./MobileChatList";
 import { MobileChatView } from "./MobileChatView";
-import { toast } from 'sonner';
- 
+import { DocumentUploadProgress } from "./documentUploadProggress";
+import { toast } from "sonner";
+
 interface Message {
   _id: string;
   chatId: string;
@@ -60,13 +61,25 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [isUploadingDocument, setIsUploadingDocument] = useState(false); // 🆕 Upload state
+  
   const [newChatSettings, setNewChatSettings] = useState<ChatSettings>({
     studyMode: "simple",
     constraintMode: "allowed",
     document: null,
     chatTitle: "",
   });
+
+  const [uploadProgress, setUploadProgress] = useState<{
+    show: boolean;
+    fileName: string;
+    status: "uploading" | "processing" | "processed" | "failed";
+    pageCount?: number;
+  }>({
+    show: false,
+    fileName: "",
+    status: "uploading",
+  });
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modalFileInputRef = useRef<HTMLInputElement>(null);
@@ -213,12 +226,12 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
 
   const handleCreateChat = async () => {
     if (!folderId) {
-      setError("Please select a subject first to create a new chat");
+      toast.error("Please select a subject first to create a new chat");
       return;
     }
 
     if (!newChatSettings.chatTitle.trim()) {
-      setError("Please enter a chat name");
+      toast.error("Please enter a chat name");
       return;
     }
 
@@ -236,24 +249,73 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
 
       // 2️⃣ Upload document if provided
       if (newChatSettings.document) {
-        console.log("📤 Uploading document:", newChatSettings.document.name);
-        setIsUploadingDocument(true);
+        const file = newChatSettings.document;
+        console.log("📤 Uploading document:", file.name);
+
+        // Show uploading modal
+        setUploadProgress({
+          show: true,
+          fileName: file.name,
+          status: "uploading",
+        });
 
         try {
-          const uploadedDoc = await uploadDocument(
-            newChat._id,
-            newChatSettings.document
+          // Upload document
+          const document = await uploadDocument(newChat._id, file);
+          console.log("✅ Upload complete, starting processing:", document.id);
+
+          // Update to processing state
+          setUploadProgress({
+            show: true,
+            fileName: file.name,
+            status: "processing",
+          });
+
+          // Poll for status updates
+          await pollDocumentStatus(
+            document.id,
+            (status, pageCount) => {
+              console.log(`📊 Status update: ${status}, pages: ${pageCount || 0}`);
+
+              if (status === "processing") {
+                setUploadProgress({
+                  show: true,
+                  fileName: file.name,
+                  status: "processing",
+                  pageCount,
+                });
+              } else if (status === "processed") {
+                setUploadProgress({
+                  show: true,
+                  fileName: file.name,
+                  status: "processed",
+                  pageCount,
+                });
+              } else if (status === "failed") {
+                setUploadProgress({
+                  show: true,
+                  fileName: file.name,
+                  status: "failed",
+                });
+              }
+            },
+            2000,
+            60
           );
-          console.log("✅ Document uploaded:", uploadedDoc);
+
+          toast.success("Document processed successfully!");
         } catch (uploadErr) {
-          console.error("❌ Document upload failed:", uploadErr);
-          setError(
-            `Chat created but document upload failed: ${
+          console.error("❌ Document upload/processing failed:", uploadErr);
+          setUploadProgress({
+            show: true,
+            fileName: file.name,
+            status: "failed",
+          });
+          toast.error(
+            `Document processing failed: ${
               uploadErr instanceof Error ? uploadErr.message : "Unknown error"
             }`
           );
-        } finally {
-          setIsUploadingDocument(false);
         }
       }
 
@@ -272,9 +334,10 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
       setChats([enrichedChat, ...chats]);
       setActiveChat(enrichedChat);
       setShowNewChatModal(false);
+      toast.success("Chat created successfully!");
     } catch (err) {
       console.error("Error creating chat:", err);
-      setError(err instanceof Error ? err.message : "Failed to create chat");
+      toast.error(err instanceof Error ? err.message : "Failed to create chat");
     } finally {
       setIsLoading(false);
     }
@@ -292,9 +355,11 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
       if (activeChat?._id === chatId) {
         setActiveChat(chats.length > 1 ? chats[0] : null);
       }
+
+      toast.success("Chat archived successfully");
     } catch (err) {
       console.error("Error archiving chat:", err);
-      setError(err instanceof Error ? err.message : "Failed to archive chat");
+      toast.error(err instanceof Error ? err.message : "Failed to archive chat");
     } finally {
       setIsLoading(false);
     }
@@ -350,7 +415,7 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
       await createMessage(activeChat._id, messageContent);
     } catch (err) {
       console.error("Error sending message:", err);
-      setError(err instanceof Error ? err.message : "Failed to send message");
+      toast.error(err instanceof Error ? err.message : "Failed to send message");
       setIsTyping(false);
 
       if (activeChat) {
@@ -370,61 +435,97 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
   };
 
   const handleGeneratePDF = () => {
-    alert("PDF generation would be triggered here");
+    toast.info("PDF generation feature coming soon!");
   };
 
-  // 🆕 Handle file upload for active chat
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !activeChat) return;
-     const toastId = toast.loading(`Uploading "${file.name}"...`);
 
-
+    // Validate file type
     if (file.type !== "application/pdf") {
-      setError("Only PDF files are allowed");
+      toast.error("Only PDF files are supported");
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError("File size must be less than 10MB");
+    // Validate file size (15MB max)
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("File size must be less than 15MB");
       return;
     }
 
     try {
-      setIsUploadingDocument(true);
-      setError(null);
+      // Show uploading state
+      setUploadProgress({
+        show: true,
+        fileName: file.name,
+        status: "uploading",
+      });
 
-      console.log("📤 Uploading document to active chat:", file.name);
+      console.log("📤 Uploading document:", file.name);
 
-      const uploadedDoc = await uploadDocument(activeChat._id, file);
+      // Upload document
+      const document = await uploadDocument(activeChat._id, file);
 
-       toast.success(`Document "${file.name}" uploaded successfully!`, {
-      id: toastId,
-      duration: 3000,
-    });
+      console.log("✅ Upload complete, starting processing:", document.id);
 
-      console.log("✅ Document uploaded successfully:", uploadedDoc);
+      // Update to processing state
+      setUploadProgress({
+        show: true,
+        fileName: file.name,
+        status: "processing",
+      });
 
-      // Show success message
-      setError(null);
+      // Poll for status updates
+      await pollDocumentStatus(
+        document.id,
+        (status, pageCount) => {
+          console.log(`📊 Status update: ${status}, pages: ${pageCount || 0}`);
 
-      // Clear file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    } catch (err) {
+          if (status === "processing") {
+            setUploadProgress({
+              show: true,
+              fileName: file.name,
+              status: "processing",
+              pageCount,
+            });
+          } else if (status === "processed") {
+            setUploadProgress({
+              show: true,
+              fileName: file.name,
+              status: "processed",
+              pageCount,
+            });
+          } else if (status === "failed") {
+            setUploadProgress({
+              show: true,
+              fileName: file.name,
+              status: "failed",
+            });
+          }
+        },
+        2000,
+        60
+      );
 
-      toast.error(`Failed to upload "${file.name}"`, {
-      id: toastId,
-      duration: 4000,
-    });
+      toast.success("Document processed successfully!");
+    } catch (error) {
+      console.error("❌ Upload/processing error:", error);
 
-      console.error("❌ Upload failed:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to upload document"
+      setUploadProgress({
+        show: true,
+        fileName: file.name,
+        status: "failed",
+      });
+
+      toast.error(
+        error instanceof Error ? error.message : "Failed to process document"
       );
     } finally {
-      setIsUploadingDocument(false);
+      // Clear file input
+      if (e.target) {
+        e.target.value = "";
+      }
     }
   };
 
@@ -432,11 +533,11 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.type !== "application/pdf") {
-        setError("Only PDF files are allowed");
+        toast.error("Only PDF files are allowed");
         return;
       }
-      if (file.size > 10 * 1024 * 1024) {
-        setError("File size must be less than 10MB");
+      if (file.size > 15 * 1024 * 1024) {
+        toast.error("File size must be less than 15MB");
         return;
       }
       setNewChatSettings({ ...newChatSettings, document: file });
@@ -459,19 +560,20 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
           showNewChatButton={!!folderId}
           headerTitle={folderId ? subjectName : "All Chats"}
         />
-        {error && (
-          <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-sm shadow-lg z-50 flex items-center gap-2">
-            {error}
-            <button onClick={() => setError(null)}>×</button>
-          </div>
-        )}
+        <DocumentUploadProgress
+          show={uploadProgress.show}
+          fileName={uploadProgress.fileName}
+          status={uploadProgress.status}
+          pageCount={uploadProgress.pageCount}
+          onClose={() => setUploadProgress({ ...uploadProgress, show: false })}
+        />
         <NewChatModal
           show={showNewChatModal}
           onClose={() => setShowNewChatModal(false)}
           settings={newChatSettings}
           onSettingsChange={setNewChatSettings}
           onCreateChat={handleCreateChat}
-          isLoading={isLoading || isUploadingDocument}
+          isLoading={isLoading}
           modalFileInputRef={modalFileInputRef}
           onFileUpload={handleModalFileUpload}
         />
@@ -495,53 +597,56 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
           fileInputRef={fileInputRef}
           textareaRef={textareaRef}
         />
-        {error && (
-          <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-sm shadow-lg z-50 flex items-center gap-2">
-            {error}
-            <button onClick={() => setError(null)}>×</button>
-          </div>
-        )}
+        <DocumentUploadProgress
+          show={uploadProgress.show}
+          fileName={uploadProgress.fileName}
+          status={uploadProgress.status}
+          pageCount={uploadProgress.pageCount}
+          onClose={() => setUploadProgress({ ...uploadProgress, show: false })}
+        />
       </>
     );
   }
 
   // DESKTOP VIEW
   return (
-    <div className="h-[calc(100vh-7rem)] flex">
-      {error && (
-        <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-sm shadow-lg z-50 flex items-center gap-2">
-          {error}
-          <button onClick={() => setError(null)}>×</button>
-        </div>
-      )}
-
-
-      <ChatList
-        chats={chats}
-        activeChat={activeChat}
-        onChatSelect={handleChatSelect}
-        onNewChat={handleNewChatClick}
-        onArchiveChat={handleArchiveChat}
-        isLoading={isLoading}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        showNewChatButton={!!folderId}
-        headerTitle={folderId ? subjectName : "All Chats"}
-      />
-
-      <div className="flex-1 flex flex-col bg-background">
-        <ChatView
-          chat={activeChat}
-          input={input}
-          onInputChange={setInput}
-          onSend={handleSend}
-          onGeneratePDF={handleGeneratePDF}
-          onFileUpload={handleFileUpload}
-          isTyping={isTyping}
-          fileInputRef={fileInputRef}
-          textareaRef={textareaRef}
+    <>
+      <div className="h-[calc(100vh-7rem)] flex">
+        <ChatList
+          chats={chats}
+          activeChat={activeChat}
+          onChatSelect={handleChatSelect}
+          onNewChat={handleNewChatClick}
+          onArchiveChat={handleArchiveChat}
+          isLoading={isLoading}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          showNewChatButton={!!folderId}
+          headerTitle={folderId ? subjectName : "All Chats"}
         />
+
+        <div className="flex-1 flex flex-col bg-background">
+          <ChatView
+            chat={activeChat}
+            input={input}
+            onInputChange={setInput}
+            onSend={handleSend}
+            onGeneratePDF={handleGeneratePDF}
+            onFileUpload={handleFileUpload}
+            isTyping={isTyping}
+            fileInputRef={fileInputRef}
+            textareaRef={textareaRef}
+          />
+        </div>
       </div>
+
+      <DocumentUploadProgress
+        show={uploadProgress.show}
+        fileName={uploadProgress.fileName}
+        status={uploadProgress.status}
+        pageCount={uploadProgress.pageCount}
+        onClose={() => setUploadProgress({ ...uploadProgress, show: false })}
+      />
 
       <NewChatModal
         show={showNewChatModal}
@@ -549,11 +654,11 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
         settings={newChatSettings}
         onSettingsChange={setNewChatSettings}
         onCreateChat={handleCreateChat}
-        isLoading={isLoading || isUploadingDocument}
+        isLoading={isLoading}
         modalFileInputRef={modalFileInputRef}
         onFileUpload={handleModalFileUpload}
       />
-    </div>
+    </>
   );
 };
 
