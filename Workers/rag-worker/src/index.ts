@@ -1,10 +1,10 @@
 // rag-worker/src/index.ts
 import { Worker } from "bullmq";
 import express, { Request, Response } from "express";
-import { redis } from "./config/redis";
-import { connectDB } from "./config/db";
-import { DocumentModel } from "./models/Document";
-import { processDocumentRAG } from "./pipeline/rag.pipeline";
+import { redis } from "./config/redis.js";
+import { connectDB } from "./config/db.js";
+import { DocumentModel } from "./models/Document.js";
+import { processDocumentRAG } from "./pipeline/rag.pipeline.js";
 
 interface RagJobData {
   documentId: string;

@@ -1,8 +1,8 @@
 // rag-worker/src/pipeline/rag.pipeline.ts
-import { supabaseAdmin } from "../config/supabase";
-import { extractAndProcessPdf, PageChunk } from "../services/pdf.extractor";
-import { generateBatchEmbeddings } from "../services/embedder";
-import { storeBatchVectors, VectorChunk } from "../services/vector.store";
+import { supabaseAdmin } from "../config/supabase.js";
+import { extractAndProcessPdf, PageChunk } from "../services/pdf.extractor.js";
+import { generateBatchEmbeddings } from "../services/embedder.js";
+import { storeBatchVectors, VectorChunk } from "../services/vector.store.js";
 
 export interface PipelineResult {
   success: boolean;

@@ -1,5 +1,5 @@
 // rag-worker/src/services/vector.store.ts
-import { supabaseAdmin } from "../config/supabase";
+import { supabaseAdmin } from "../config/supabase.js";
 
 export interface VectorChunk {
   documentId: string;
