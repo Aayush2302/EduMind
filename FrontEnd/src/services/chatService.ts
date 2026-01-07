@@ -37,7 +37,7 @@ export const getChats = async (folderId: string): Promise<Chat[]> => {
 ================================ */
 export const createChat = async (
   folderId: string,
-  payload: { title: string; studyMode?: "simple" | "interview" | "step-by-step" }
+  payload: { title: string; studyMode?: "simple" | "interview" | "step-by-step", constraintMode?: "allowed" | "strict" }
 ) => {
   const res = await apiFetch(`/api/folders/${folderId}/chats`, {
     method: "POST",

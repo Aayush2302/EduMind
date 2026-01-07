@@ -9,6 +9,7 @@ import {
   getAllchatsForUser,
 } from "./chat.service.js";
 import { AppError } from "../../utils/AppError.js";
+import { settings } from "node:cluster";
 // import { success } from "zod";
 
 /**
@@ -38,14 +39,15 @@ export async function createChatHandler(req: Request, res: Response) {
   }
 
   // Validate request body using Zod schema
-  const { title, studyMode } = createChatSchema.parse(req.body);
+  const { title, studyMode, constraintMode } = createChatSchema.parse(req.body);
 
   console.log("[CREATE CHAT] Creating chat with data", {
     title,
     studyMode,
+    constraintMode,
   });
 
-  const chat = await createChat(userId, folderId, title, studyMode);
+  const chat = await createChat(userId, folderId, title, studyMode, constraintMode);
 
   console.log("[CREATE CHAT] Chat created successfully", {
     chatId: chat._id,

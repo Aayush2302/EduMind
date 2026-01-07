@@ -224,124 +224,122 @@ const Chats = ({ folderId, subjectName = "All Chats" }: ChatsProps) => {
     setShowNewChatModal(true);
   };
 
-  const handleCreateChat = async () => {
-    if (!folderId) {
-      toast.error("Please select a subject first to create a new chat");
-      return;
-    }
+const handleCreateChat = async () => {
+  if (!folderId) {
+    toast.error("Please select a subject first to create a new chat");
+    return;
+  }
 
-    if (!newChatSettings.chatTitle.trim()) {
-      toast.error("Please enter a chat name");
-      return;
-    }
+  if (!newChatSettings.chatTitle.trim()) {
+    toast.error("Please enter a chat name");
+    return;
+  }
 
-    try {
-      setIsLoading(true);
-      setError(null);
+  try {
+    setIsLoading(true);
+    setError(null);
 
-      // 1️⃣ Create the chat first
-      const newChat = await createChat(folderId, {
-        title: newChatSettings.chatTitle.trim(),
-        studyMode: mapStudyModeToBackend(newChatSettings.studyMode),
+    // 1️⃣ Create the chat first - NOW INCLUDING constraintMode
+    const newChat = await createChat(folderId, {
+      title: newChatSettings.chatTitle.trim(),
+      studyMode: mapStudyModeToBackend(newChatSettings.studyMode),
+      constraintMode: newChatSettings.constraintMode, // ✅ ADD THIS LINE
+    });
+
+    console.log("✅ Chat created:", newChat._id);
+
+    // Rest of the function remains the same...
+    // 2️⃣ Upload document if provided
+    if (newChatSettings.document) {
+      const file = newChatSettings.document;
+      console.log("📤 Uploading document:", file.name);
+
+      setUploadProgress({
+        show: true,
+        fileName: file.name,
+        status: "uploading",
       });
 
-      console.log("✅ Chat created:", newChat._id);
+      try {
+        const document = await uploadDocument(newChat._id, file);
+        console.log("✅ Upload complete, starting processing:", document.id);
 
-      // 2️⃣ Upload document if provided
-      if (newChatSettings.document) {
-        const file = newChatSettings.document;
-        console.log("📤 Uploading document:", file.name);
-
-        // Show uploading modal
         setUploadProgress({
           show: true,
           fileName: file.name,
-          status: "uploading",
+          status: "processing",
         });
 
-        try {
-          // Upload document
-          const document = await uploadDocument(newChat._id, file);
-          console.log("✅ Upload complete, starting processing:", document.id);
+        await pollDocumentStatus(
+          document.id,
+          (status, pageCount) => {
+            console.log(`📊 Status update: ${status}, pages: ${pageCount || 0}`);
 
-          // Update to processing state
-          setUploadProgress({
-            show: true,
-            fileName: file.name,
-            status: "processing",
-          });
+            if (status === "processing") {
+              setUploadProgress({
+                show: true,
+                fileName: file.name,
+                status: "processing",
+                pageCount,
+              });
+            } else if (status === "processed") {
+              setUploadProgress({
+                show: true,
+                fileName: file.name,
+                status: "processed",
+                pageCount,
+              });
+            } else if (status === "failed") {
+              setUploadProgress({
+                show: true,
+                fileName: file.name,
+                status: "failed",
+              });
+            }
+          },
+          2000,
+          60
+        );
 
-          // Poll for status updates
-          await pollDocumentStatus(
-            document.id,
-            (status, pageCount) => {
-              console.log(`📊 Status update: ${status}, pages: ${pageCount || 0}`);
-
-              if (status === "processing") {
-                setUploadProgress({
-                  show: true,
-                  fileName: file.name,
-                  status: "processing",
-                  pageCount,
-                });
-              } else if (status === "processed") {
-                setUploadProgress({
-                  show: true,
-                  fileName: file.name,
-                  status: "processed",
-                  pageCount,
-                });
-              } else if (status === "failed") {
-                setUploadProgress({
-                  show: true,
-                  fileName: file.name,
-                  status: "failed",
-                });
-              }
-            },
-            2000,
-            60
-          );
-
-          toast.success("Document processed successfully!");
-        } catch (uploadErr) {
-          console.error("❌ Document upload/processing failed:", uploadErr);
-          setUploadProgress({
-            show: true,
-            fileName: file.name,
-            status: "failed",
-          });
-          toast.error(
-            `Document processing failed: ${
-              uploadErr instanceof Error ? uploadErr.message : "Unknown error"
-            }`
-          );
-        }
+        toast.success("Document processed successfully!");
+      } catch (uploadErr) {
+        console.error("❌ Document upload/processing failed:", uploadErr);
+        setUploadProgress({
+          show: true,
+          fileName: file.name,
+          status: "failed",
+        });
+        toast.error(
+          `Document processing failed: ${
+            uploadErr instanceof Error ? uploadErr.message : "Unknown error"
+          }`
+        );
       }
-
-      // 3️⃣ Add chat to list
-      const enrichedChat: Chat = {
-        ...newChat,
-        preview: "Start a conversation...",
-        messages: [],
-        settings: {
-          studyMode: newChatSettings.studyMode,
-          constraintMode: newChatSettings.constraintMode,
-          chatTitle: newChatSettings.chatTitle.trim(),
-        },
-      };
-
-      setChats([enrichedChat, ...chats]);
-      setActiveChat(enrichedChat);
-      setShowNewChatModal(false);
-      toast.success("Chat created successfully!");
-    } catch (err) {
-      console.error("Error creating chat:", err);
-      toast.error(err instanceof Error ? err.message : "Failed to create chat");
-    } finally {
-      setIsLoading(false);
     }
-  };
+
+    // 3️⃣ Add chat to list
+    const enrichedChat: Chat = {
+      ...newChat,
+      preview: "Start a conversation...",
+      messages: [],
+      settings: {
+        studyMode: newChatSettings.studyMode,
+        constraintMode: newChatSettings.constraintMode,
+        chatTitle: newChatSettings.chatTitle.trim(),
+      },
+    };
+
+    setChats([enrichedChat, ...chats]);
+    setActiveChat(enrichedChat);
+    setShowNewChatModal(false);
+    toast.success("Chat created successfully!");
+  } catch (err) {
+    console.error("Error creating chat:", err);
+    toast.error(err instanceof Error ? err.message : "Failed to create chat");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleArchiveChat = async (chatId: string) => {
     try {

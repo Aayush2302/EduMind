@@ -12,7 +12,8 @@ export async function createChat(
     userId: string,
     folderId: string,
     title: string,
-    studyMode?: "simple" | "interview" | "step-by-step" 
+    studyMode?: "simple" | "interview" | "step-by-step" ,
+    constraintMode?: "allowed" | "strict"
 ) {
     console.log("[SERVICE] createChat called", {
         userId,
@@ -37,7 +38,8 @@ export async function createChat(
     const chat = await Chat.create({
         folderId,
         title,
-        studyMode
+        studyMode,
+        constraintMode
     });
 
     console.log("[SERVICE] Chat document created", {
