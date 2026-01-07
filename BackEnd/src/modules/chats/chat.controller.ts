@@ -9,7 +9,6 @@ import {
   getAllchatsForUser,
 } from "./chat.service.js";
 import { AppError } from "../../utils/AppError.js";
-import { settings } from "node:cluster";
 // import { success } from "zod";
 
 /**
