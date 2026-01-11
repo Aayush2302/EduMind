@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Send, Paperclip, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,14 @@ export const ChatInput = ({
   maxHeight = "150px",
 }: ChatInputProps) => {
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+
+  // Auto-expand textarea based on content
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, parseInt(maxHeight))}px`;
+    }
+  }, [value, maxHeight, textareaRef]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -85,7 +93,7 @@ export const ChatInput = ({
         onKeyDown={handleKeyDown}
         placeholder="Type a message..."
         rows={1}
-        className="flex-1 bg-transparent text-foreground placeholder:text-text-muted resize-none focus:outline-none text-sm py-1"
+        className="flex-1 bg-transparent text-foreground placeholder:text-text-muted resize-none focus:outline-none text-sm py-1 overflow-y-auto scrollbar-minimal"
         style={{ maxHeight }}
         disabled={disabled}
       />

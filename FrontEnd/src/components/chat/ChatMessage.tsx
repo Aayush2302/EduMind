@@ -9,7 +9,7 @@ interface Message {
   chatId: string;
   sender: "user" | "assistant";
   content: string;
-  status: "completed" | "processing" | "failed"; // ← ADD "failed" HERE
+  status: "completed" | "processing" | "failed";
   parentMessageId?: string;
   createdAt: string;
   updatedAt: string;
@@ -49,6 +49,37 @@ export const ChatMessage = ({ message, index }: ChatMessageProps) => {
 
   const isUser = message.sender === "user";
   const isFailed = message.status === "failed";
+  const isProcessing = message.status === "processing";
+
+  // Processing indicator component
+  const ProcessingIndicator = () => (
+    <div className="flex items-center gap-2">
+      <span className="text-text-muted">AI is thinking</span>
+      <div className="flex gap-1">
+        <motion.span
+          animate={{ opacity: [0.4, 1, 0.4] }}
+          transition={{ duration: 1.4, repeat: Infinity, delay: 0 }}
+          className="text-text-muted"
+        >
+          •
+        </motion.span>
+        <motion.span
+          animate={{ opacity: [0.4, 1, 0.4] }}
+          transition={{ duration: 1.4, repeat: Infinity, delay: 0.2 }}
+          className="text-text-muted"
+        >
+          •
+        </motion.span>
+        <motion.span
+          animate={{ opacity: [0.4, 1, 0.4] }}
+          transition={{ duration: 1.4, repeat: Infinity, delay: 0.4 }}
+          className="text-text-muted"
+        >
+          •
+        </motion.span>
+      </div>
+    </div>
+  );
 
   // Mobile layout - user left with limited width, assistant full width
   if (isMobile) {
@@ -86,7 +117,11 @@ export const ChatMessage = ({ message, index }: ChatMessageProps) => {
             )}
           >
             <div className="overflow-hidden break-words">
-              <MessageDisplay content={message.content} sender={message.sender} />
+              {isProcessing ? (
+                <ProcessingIndicator />
+              ) : (
+                <MessageDisplay content={message.content} sender={message.sender} />
+              )}
             </div>
           </div>
           <p className="text-xs text-text-muted mt-1 px-1">
@@ -128,7 +163,11 @@ export const ChatMessage = ({ message, index }: ChatMessageProps) => {
           )}
         >
           <div className="break-words">
-            <MessageDisplay content={message.content} sender={message.sender} />
+            {isProcessing ? (
+              <ProcessingIndicator />
+            ) : (
+              <MessageDisplay content={message.content} sender={message.sender} />
+            )}
           </div>
         </div>
         <p className={cn("text-xs text-text-muted mt-1 md:mt-2", isUser ? "text-right" : "text-left")}>
