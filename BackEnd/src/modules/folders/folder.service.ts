@@ -50,10 +50,14 @@ export async function getFolders(ownerId: string) {
     ownerId
   });
 
-  const folders = await SubjectFolder.find({
-    ownerId,
-    isDeleted: false
-  }).sort({ updatedAt: -1 });
+  const folders = await SubjectFolder
+    .find({
+      ownerId,
+      isDeleted: false
+    })
+    .populate('chatCount')
+    .sort({ updatedAt: -1 })
+    .lean();
 
   console.log("[SERVICE] Folders retrieved", {
     count: folders.length

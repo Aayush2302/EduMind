@@ -9,7 +9,7 @@ const navItems = [
   { icon: FolderOpen, label: "Subjects", path: "/subjects" },
   { icon: MessageSquare, label: "Chats", path: "/chats" },
   { icon: FileText, label: "Documents", path: "/documents" },
-  { icon: Settings, label: "Settings", path: "/settings" },
+  // { icon: Settings, label: "Settings", path: "/settings" },
 ];
 
 export function Sidebar() {

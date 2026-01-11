@@ -8,6 +8,7 @@ export interface Folder {
   isDeleted: boolean;
   createdAt: string;
   updatedAt: string;
+  chatCount?: number; // Optional field for number of chats in the folder
 }
 
 export interface CreateFolderRequest {

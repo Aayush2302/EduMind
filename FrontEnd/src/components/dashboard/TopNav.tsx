@@ -57,10 +57,10 @@ export function TopNav() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48 bg-popover border-border">
-            <DropdownMenuItem onClick={() => navigate("/settings")}>
+            {/* <DropdownMenuItem onClick={() => navigate("/settings")}>
               Settings
             </DropdownMenuItem>
-            <DropdownMenuSeparator className="bg-border" />
+            <DropdownMenuSeparator className="bg-border" /> */}
             <DropdownMenuItem onClick={handleLogout}>
               Sign out
             </DropdownMenuItem>

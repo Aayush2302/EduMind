@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { getFolders } from "@/services/folderService";
 import { getChats } from "@/services/chatService";
+import { getAllUserDocuments } from "@/services/documentService";
 import { getCurrentUser } from "@/lib/api";
 
 interface ActivityItem {
@@ -24,6 +25,7 @@ interface User {
 const Dashboard = () => {
   const [folders, setFolders] = useState<any[]>([]);
   const [totalChats, setTotalChats] = useState(0);
+  const [totalDocuments, setTotalDocuments] = useState(0);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,6 +53,28 @@ const Dashboard = () => {
       // Fetch folders
       const foldersData = await getFolders();
       setFolders(foldersData);
+
+      // Fetch documents
+      try {
+        const documentsData = await getAllUserDocuments();
+        if (documentsData.success) {
+          setTotalDocuments(documentsData.documents.length);
+          
+          // Add document uploads to activity
+          const docActivities: ActivityItem[] = documentsData.documents.slice(0, 3).map((doc: any) => ({
+            type: "document",
+            title: `Uploaded: ${doc.fileName}`,
+            time: formatTime(doc.createdAt),
+            createdAt: doc.createdAt,
+          }));
+          
+          // Store for later merging with chat activities
+          recentActivity.push(...docActivities);
+        }
+      } catch (err) {
+        console.error("Failed to fetch documents:", err);
+        // Don't fail the whole dashboard if documents fail
+      }
 
       // Fetch chats from all folders and build activity
       let allChats = 0;
@@ -139,7 +163,7 @@ const Dashboard = () => {
     },
     {
       label: "Documents",
-      value: "0",
+      value: totalDocuments.toString(),
       icon: FileText,
       path: "/documents",
     },
@@ -265,15 +289,15 @@ const Dashboard = () => {
             </CardHeader>
           </Card>
         </Link>
-        <Link to="/chats"> {/* Remove query params */}
-  <Card variant="hover" className="p-6">
-    <CardHeader className="p-0">
-      <MessageSquare className="w-5 h-5 text-text-secondary mb-3" />
-      <CardTitle className="text-base">Start Chat</CardTitle>
-      <CardDescription>View all your conversations</CardDescription>
-    </CardHeader>
-  </Card>
-</Link>
+        <Link to="/chats">
+          <Card variant="hover" className="p-6">
+            <CardHeader className="p-0">
+              <MessageSquare className="w-5 h-5 text-text-secondary mb-3" />
+              <CardTitle className="text-base">Start Chat</CardTitle>
+              <CardDescription>View all your conversations</CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
         <Link to="/documents">
           <Card variant="hover" className="p-6">
             <CardHeader className="p-0">

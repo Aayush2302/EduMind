@@ -198,7 +198,8 @@ const Subjects = () => {
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-1 text-text-muted">
                       <MessageSquare className="w-3.5 h-3.5" />
-                      <span>0 chats</span>
+                      {/* want to show the number of chats */}
+                      <span>{folder.chatCount || 0} chat{folder.chatCount !== 1 ? 's' : ''}</span>
                     </div>
                     <span className="text-text-muted">
                       {getRelativeTime(folder.updatedAt)}
